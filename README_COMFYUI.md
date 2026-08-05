@@ -20,6 +20,23 @@
 
 ## 🛠️ Instalação Passo a Passo
 
+### Opção recomendada no Mac Intel: Docker
+
+O Mac roda apenas a interface; a geração continua no Modal. O container usa o
+checkout atual do ComfyUI e wheels Linux CPU, sem depender do Python Intel do
+macOS:
+
+```bash
+cd ~/Projetos/Casa\ Amarano
+docker compose -f compose.comfyui.yaml up -d --build
+```
+
+Abra `http://127.0.0.1:8188`. Para parar:
+
+```bash
+docker compose -f compose.comfyui.yaml down
+```
+
 ### 1. Pré-requisitos
 - macOS Intel com `/usr/local/bin/python3.12`.
 - Conta no [Modal.com](https://modal.com) criada.

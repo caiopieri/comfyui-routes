@@ -1,0 +1,15 @@
+services:
+  comfyui:
+    build:
+      context: .
+      dockerfile: docker/comfyui-local/Dockerfile
+    container_name: casa-amarano-comfyui
+    restart: unless-stopped
+    ports:
+      - "8188:8188"
+    environment:
+      CASA_AMARANO_ROOT: /workspace/project
+    volumes:
+      - ./comfyui:/workspace/project/comfyui
+      - ./comfyui/custom_nodes/comfyui_modal_dispatch:/opt/ComfyUI/custom_nodes/comfyui_modal_dispatch:ro
+      - ${HOME}/.modal.toml:/root/.modal.toml:ro

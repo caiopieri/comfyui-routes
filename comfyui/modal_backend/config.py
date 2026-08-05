@@ -73,7 +73,7 @@ MODEL_PROFILES: Dict[str, Dict[str, Any]] = {
     "hunyuanvideo_1_5": {"family": "HunyuanVideo 1.5", "mode": "txt2video/img2video", "vram_min_gb": 16},
     "hunyuanvideo": {"family": "HunyuanVideo", "mode": "txt2video/img2video", "vram_min_gb": 64},
     "cogvideox": {"family": "CogVideoX", "mode": "txt2video/img2video", "vram_min_gb": 32},
-    "ltx_video": {"family": "LTX-Video", "mode": "txt2video/img2video", "vram_min_gb": 16},
+    "ltx_video": {"family": "LTX-2.3 22B", "mode": "txt2video/img2video", "vram_min_gb": 40},
     "mochi_1": {"family": "Mochi 1", "mode": "txt2video", "vram_min_gb": 24},
     "upscale_4x": {"family": "Upscale 4x", "mode": "upscale", "vram_min_gb": 8},
 }

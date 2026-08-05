@@ -145,6 +145,16 @@ acreditando que foi Wan, FLUX ou Hunyuan.
 
 Referências usadas para os limites mais sensíveis: [Wan 2.2](https://github.com/Wan-Video/Wan2.2), [HunyuanVideo](https://github.com/Tencent-Hunyuan/HunyuanVideo), [HunyuanVideo 1.5](https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5), [FLUX.2](https://github.com/black-forest-labs/flux2).
 
+Para preparar o workflow LTX-2.3 I2V da comunidade, os modelos já podem ser
+baixados diretamente para o Volume Modal com:
+
+```bash
+modal run comfyui/modal_backend/download_models.py --preset ltx-2.3-i2v
+```
+
+Esse preset ocupa aproximadamente 40 GB e usa A100-40GB como limite mínimo do
+scheduler; A100-80GB ou H100 são opções mais seguras para vídeos maiores.
+
 ---
 
 ## 🧪 Testes Automatizados

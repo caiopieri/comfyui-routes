@@ -47,6 +47,36 @@ PRESETS = {
             "destino": "checkpoints",
         },
     ],
+    "ltx-2.3-i2v": [
+        {
+            "repo": "Lightricks/LTX-2.3-fp8",
+            "arquivo": "ltx-2.3-22b-dev-fp8.safetensors",
+            "destino": "checkpoints",
+        },
+        {
+            "repo": "Comfy-Org/ltx-2",
+            "arquivo": "gemma_3_12B_it_fp4_mixed.safetensors",
+            "hf_arquivo": "split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors",
+            "destino": "text_encoders",
+        },
+        {
+            "repo": "Comfy-Org/ltx-2",
+            "arquivo": "gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors",
+            "hf_arquivo": "split_files/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors",
+            "destino": "loras",
+        },
+        {
+            "repo": "Kijai/LTX2.3_comfy",
+            "arquivo": "ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
+            "hf_arquivo": "loras/ltx-2.3-22b-distilled-1.1_lora-dynamic_fro09_avg_rank_111_bf16.safetensors",
+            "destino": "loras",
+        },
+        {
+            "repo": "Lightricks/LTX-2.3",
+            "arquivo": "ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+            "destino": "latent_upscale_models",
+        },
+    ],
 }
 
 
@@ -59,7 +89,7 @@ PRESETS = {
     #   modal secret create huggingface HF_TOKEN=hf_xxxxx
     secrets=[modal.Secret.from_name("huggingface", required_keys=[])],
 )
-def baixar(repo: str, arquivo: str, destino: str = "checkpoints"):
+def baixar(repo: str, arquivo: str, destino: str = "checkpoints", hf_arquivo: str = ""):
     """Baixa um arquivo do Hugging Face direto para o volume."""
     import os
 
@@ -78,10 +108,13 @@ def baixar(repo: str, arquivo: str, destino: str = "checkpoints"):
     print(f"[baixando] {repo} :: {arquivo} -> {pasta}")
     caminho = hf_hub_download(
         repo_id=repo,
-        filename=arquivo,
+        filename=hf_arquivo or arquivo,
         local_dir=pasta,
         token=os.environ.get("HF_TOKEN"),
     )
+    if os.path.abspath(caminho) != os.path.abspath(destino_final):
+        os.replace(caminho, destino_final)
+        caminho = destino_final
 
     volume.commit()
     tamanho = os.path.getsize(caminho) / (1024**3)
@@ -101,7 +134,7 @@ def main(
             disponiveis = ", ".join(PRESETS)
             raise SystemExit(f"Preset '{preset}' não existe. Disponíveis: {disponiveis}")
         for item in PRESETS[preset]:
-            baixar.remote(item["repo"], item["arquivo"], item["destino"])
+            baixar.remote(item["repo"], item["arquivo"], item["destino"], item.get("hf_arquivo", item["arquivo"]))
         print(f"\nPreset '{preset}' concluído.")
         return
 

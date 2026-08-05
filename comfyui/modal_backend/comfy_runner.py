@@ -22,6 +22,7 @@ class ComfyHeadlessRunner:
         self.port = port
         self.base_url = f"http://127.0.0.1:{port}"
         self.process = None
+        self.comfy_root = None
 
     def _find_comfy(self) -> Path:
         candidates = [
@@ -57,6 +58,7 @@ class ComfyHeadlessRunner:
         if self.process is not None:
             return
         main_py = self._find_comfy()
+        self.comfy_root = main_py.parent
         self._write_model_paths(main_py.parent)
         command = [
             "python",
@@ -107,7 +109,7 @@ class ComfyHeadlessRunner:
     def _serialize_outputs(self, history: Dict[str, Any]) -> List[Dict[str, Any]]:
         outputs: List[Dict[str, Any]] = []
         for node_output in history.get("outputs", {}).values():
-            for key in ("images", "gifs", "audio"):
+            for key in ("images", "gifs", "videos", "audio"):
                 for item in node_output.get(key, []):
                     filename = item.get("filename")
                     subfolder = item.get("subfolder", "")
@@ -133,11 +135,18 @@ class ComfyHeadlessRunner:
         gpu_type: str = "L4",
         is_warm: bool = False,
         timeout_s: int = 1800,
+        input_files: Dict[str, str] | None = None,
     ) -> Dict[str, Any]:
         if gpu_type not in GPU_SPECS:
             raise ValueError(f"GPU não catalogada: {gpu_type}")
         started = time.perf_counter()
         self.start()
+        if input_files:
+            input_dir = self.comfy_root / "input"
+            input_dir.mkdir(parents=True, exist_ok=True)
+            for filename, data_base64 in input_files.items():
+                safe_name = Path(filename).name
+                (input_dir / safe_name).write_bytes(base64.b64decode(data_base64))
         response = requests.post(
             f"{self.base_url}/prompt",
             json={"prompt": workflow, "client_id": str(uuid.uuid4())},

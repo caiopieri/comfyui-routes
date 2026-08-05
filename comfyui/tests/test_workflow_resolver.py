@@ -37,6 +37,18 @@ class TestWorkflowResolver(unittest.TestCase):
         self.assertEqual(result.model, "sdxl")
         self.assertFalse(result.needs_modal)
 
+    def test_ltx_23_workflow_uses_ltx_profile(self):
+        workflow = {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "ltx-2.3-22b-dev-fp8.safetensors"},
+            }
+        }
+        result = resolve_workflow(workflow, ["/tmp/empty-models"])
+        self.assertEqual(result.model, "ltx_video")
+        self.assertEqual(result.vram_required_gb, 40)
+        self.assertTrue(result.needs_modal)
+
 
 if __name__ == "__main__":
     unittest.main()

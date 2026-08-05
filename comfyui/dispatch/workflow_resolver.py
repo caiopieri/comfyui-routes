@@ -18,7 +18,7 @@ MODEL_TOKENS = (
     ("flux_dev", ("flux1-dev", "flux-dev", "flux_dev")),
     ("flux_schnell", ("flux1-schnell", "flux-schnell", "flux_schnell")),
     ("cogvideox", ("cogvideox",)),
-    ("ltx_video", ("ltx-video", "ltx_video")),
+    ("ltx_video", ("ltx-video", "ltx_video", "ltx-2.3", "ltx_2.3", "ltx2.3")),
     ("mochi_1", ("mochi",)),
     ("sd15", ("v1-5", "sd1.5", "sd15")),
     ("sdxl", ("sdxl", "sd_xl", "stable-diffusion-xl")),

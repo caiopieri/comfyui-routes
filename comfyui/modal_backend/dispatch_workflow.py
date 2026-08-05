@@ -2,9 +2,14 @@
 
 import base64
 import json
+import sys
 from pathlib import Path
 
 import modal
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from comfyui.dispatch.dispatch_plan import build_dispatch_plan
 from comfyui.modal_backend.app import WORKFLOW_FUNCTIONS, app
@@ -20,8 +25,14 @@ def main(
     resolution: str = "1024x1024",
     steps: int = 30,
     local_model_root: str = "~/ComfyUI/ComfyUI/models",
+    input_manifest: str = "",
 ):
     workflow = json.loads(Path(workflow_file).read_text(encoding="utf-8"))
+    input_files = {}
+    if input_manifest:
+        manifest = json.loads(Path(input_manifest).read_text(encoding="utf-8"))
+        workflow = manifest.get("workflow", workflow)
+        input_files = manifest.get("input_files", {})
     db = SchedulerDB()
     router = GPURouter(db=db, budget_manager=BudgetManager(db))
     plan = build_dispatch_plan(
@@ -36,7 +47,7 @@ def main(
         raise SystemExit("Todos os modelos do workflow existem localmente; execute pelo ComfyUI local.")
 
     selected_gpu = plan["route"]["selected_gpu"]
-    result = WORKFLOW_FUNCTIONS[selected_gpu].remote(workflow)
+    result = WORKFLOW_FUNCTIONS[selected_gpu].remote(workflow, input_files)
     output_dir = Path(workflow_file).parent
     for index, output in enumerate(result["outputs"], start=1):
         suffix = output["format"] or "bin"
@@ -50,6 +61,13 @@ def main(
         "selected_gpu": selected_gpu,
         "estimated_cost_usd": plan["route"]["estimated_cost_usd"],
         "actual": result["metrics"],
-        "outputs": [str(output_dir / f"remote_result_{i:02d}.{o['format'] or 'bin'}") for i, o in enumerate(result["outputs"], start=1)],
+        "outputs": [
+            {
+                "path": str(output_dir / f"remote_result_{i:02d}.{o['format'] or 'bin'}"),
+                "format": o["format"] or "bin",
+                "data_base64": o["data_base64"],
+            }
+            for i, o in enumerate(result["outputs"], start=1)
+        ],
     }
     print(json.dumps(summary, ensure_ascii=False))

@@ -79,41 +79,41 @@ def check_status() -> dict:
     }
 
 
-def _run_workflow(workflow: dict, gpu_type: str) -> dict:
+def _run_workflow(workflow: dict, gpu_type: str, input_files: dict | None = None) -> dict:
     from comfyui.modal_backend.comfy_runner import ComfyHeadlessRunner
 
     runner = ComfyHeadlessRunner(model_dir=MODEL_MOUNT_DIR)
-    return runner.execute_workflow(workflow, gpu_type=gpu_type, is_warm=False)
+    return runner.execute_workflow(workflow, gpu_type=gpu_type, is_warm=False, input_files=input_files)
 
 
 @app.function(image=comfy_image, gpu="T4", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_t4(workflow: dict) -> dict:
-    return _run_workflow(workflow, "T4")
+def run_workflow_t4(workflow: dict, input_files: dict | None = None) -> dict:
+    return _run_workflow(workflow, "T4", input_files)
 
 
 @app.function(image=comfy_image, gpu="L4", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_l4(workflow: dict) -> dict:
-    return _run_workflow(workflow, "L4")
+def run_workflow_l4(workflow: dict, input_files: dict | None = None) -> dict:
+    return _run_workflow(workflow, "L4", input_files)
 
 
 @app.function(image=comfy_image, gpu="A10G", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_a10g(workflow: dict) -> dict:
-    return _run_workflow(workflow, "A10G")
+def run_workflow_a10g(workflow: dict, input_files: dict | None = None) -> dict:
+    return _run_workflow(workflow, "A10G", input_files)
 
 
 @app.function(image=comfy_image, gpu="A100-40GB", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_a100_40gb(workflow: dict) -> dict:
-    return _run_workflow(workflow, "A100-40GB")
+def run_workflow_a100_40gb(workflow: dict, input_files: dict | None = None) -> dict:
+    return _run_workflow(workflow, "A100-40GB", input_files)
 
 
 @app.function(image=comfy_image, gpu="A100-80GB", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_a100_80gb(workflow: dict) -> dict:
-    return _run_workflow(workflow, "A100-80GB")
+def run_workflow_a100_80gb(workflow: dict, input_files: dict | None = None) -> dict:
+    return _run_workflow(workflow, "A100-80GB", input_files)
 
 
 @app.function(image=comfy_image, gpu="H100", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_h100(workflow: dict) -> dict:
-    return _run_workflow(workflow, "H100")
+def run_workflow_h100(workflow: dict, input_files: dict | None = None) -> dict:
+    return _run_workflow(workflow, "H100", input_files)
 
 
 WORKFLOW_FUNCTIONS = {

@@ -164,3 +164,18 @@ Para rodar os testes unitários do Scheduler de GPU:
 ```bash
 python3 -m unittest comfyui/tests/test_router.py
 ```
+## Execução automática local → Modal
+
+O ComfyUI local roda a interface em CPU. Ao clicar em **Executar**, o nó
+customizado inspeciona o workflow API antes da validação local. Se um arquivo
+de modelo referenciado não existir em `models/`, o workflow inteiro é enviado
+ao Modal; o roteador escolhe a GPU conforme o perfil do modelo, VRAM, lambda e
+histórico de cold start. Imagens de `LoadImage` são transferidas junto com a
+requisição e os arquivos de saída retornam para a pasta `output/` do ComfyUI.
+
+Isso permite carregar um workflow comunitário compatível, como LTX-2.3, e
+clicar em **Executar** sem baixar os pesos para o Mac. O workflow precisa estar
+no formato API aceito pelo ComfyUI e seus nós customizados precisam existir no
+container local; apenas os pesos são resolvidos automaticamente.
+
+Se o modelo já existir localmente, o ComfyUI segue o caminho local normal.

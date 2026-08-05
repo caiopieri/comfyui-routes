@@ -1,0 +1,124 @@
+# ComfyUI Local + Dispatcher Modal + GPU Scheduler — Casa Amarano
+
+> **Guia Oficial de Operação & Arquitetura (PRD 09)**  
+> Este repositório contém o ambiente de trabalho ComfyUI do projeto Casa Amarano, projetado para iteração rápida e custo otimizado sem necessidade de GPU local.
+
+---
+
+## 💡 Princípio de Funcionamento
+
+1. **Interface Local Leve (Custo R$ 0)**: O Caio roda o ComfyUI na máquina dele (macOS, Windows ou Linux). Ele monta workflows, edita prompts, testa nós leves e navega pela interface sem gastar nada de GPU.
+2. **Despacho por Subgrafo**: Apenas a etapa pesada de amostragem/geração (ex: KSampler + VAE Decode / Wan 2.2) é empacotada pelo nó customizado `Modal Subgraph Dispatcher` e enviada para o **Modal**.
+3. **Roteamento Inteligente de GPU**: O Scheduler escolhe a melhor GPU (T4, L4, A10G, A100 ou H100) combinando:
+   - **Filtro Rígido de VRAM**: Elimina GPUs onde o modelo não cabe (ex: Wan 2.2 14B exige 24GB VRAM e é bloqueado em GPUs T4 de 16GB).
+   - **Histórico Medido no SQLite**: Aprende o tempo real de cada GPU com os dados de execuções anteriores.
+   - **Cálculo de Score**: $\text{custo} = \text{preco\_segundo} \times (\text{tempo\_estimado} + \text{cold\_start})$, $\text{score} = \text{custo} + \lambda \times (\text{tempo\_total} / 3600)$.
+   - **Containers Quentes**: Se o container já estiver ativo no Modal, $\text{cold\_start} = 0$, reduzindo o tempo total e alterando a escolha da GPU.
+4. **Cache por Seed + Parâmetros**: Reexecutar o mesmo subgrafo com a mesma seed retorna o resultado instantaneamente do cache SQLite a Custo Zero ($0.00).
+
+---
+
+## 🛠️ Instalação Passo a Passo
+
+### 1. Pré-requisitos
+- Python 3.10 ou 3.11 instalado.
+- Conta no [Modal.com](https://modal.com) criada.
+- CLI do Modal instalada e autenticada:
+  ```bash
+  pip install modal
+  modal setup
+  ```
+
+### 2. Instalar o ComfyUI Local
+
+#### No macOS (Apple Silicon / Intel):
+```bash
+git clone https://github.com/comfyanonymous/ComfyUI.git
+cd ComfyUI
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+#### No Windows:
+Use o instalador portátil do ComfyUI (*ComfyUI Portable*) ou clone o repositório e execute em um ambiente Python (`venv`).
+
+### 3. Instalar o Custom Node no ComfyUI Local
+
+Copie a pasta `comfyui/custom_nodes/comfyui_modal_dispatch` para a pasta `custom_nodes/` da sua instalação do ComfyUI:
+
+```bash
+cp -r comfyui/custom_nodes/comfyui_modal_dispatch /caminho/para/ComfyUI/custom_nodes/
+```
+
+Reinicie o ComfyUI local:
+```bash
+python main.py
+```
+
+No menu de nós do ComfyUI, você verá o novo nó em:  
+`Casa Amarano / Modal` ➔ `🚀 Modal Subgraph Dispatcher (Casa Amarano)`
+
+---
+
+## 🚀 Como Usar no ComfyUI
+
+1. Adicione o nó **`🚀 Modal Subgraph Dispatcher`** no seu canvas.
+2. Configure os parâmetros de iteração:
+   - **`model_name`**: `sdxl`, `flux_schnell`, `flux_dev` ou `wan_2_2_14b`.
+   - **`task_type`**: `txt2img`, `img2img`, `txt2video` ou `img2video`.
+   - **`resolution`**: `1024x1024`, `1280x720`, etc.
+   - **`steps`**: Número de passos (ex: 30).
+   - **`seed`**: Semente aleatória ou fixa.
+   - **`lambda_time_value` ($\lambda$)**: Ajusta a prioridade entre Custo e Tempo.
+3. Conecte as saídas do nó aos visualizadores (`PreviewImage` ou exibidore de texto para vídeos).
+4. Clique em **Queue Prompt**. A barra de progresso do ComfyUI refletirá o andamento em tempo real do Modal!
+
+---
+
+## ⚙️ Ajustando o Parâmetro $\lambda$ (Valor da Hora)
+
+O parâmetro $\lambda$ representa quanto vale **1 hora do tempo do Caio em dólares** ($\text{USD/h}$):
+
+- **$\lambda = 0$ (Modo Lote Noturno / Economia Máxima)**:  
+  O Scheduler ignora o tempo de espera e escolhe estritamente a GPU mais barata (ex.: L4 ou T4).
+- **$\lambda = 15$ (Padrão de Iteração Diária - R$ 75-80/h)**:  
+  Equilíbrio saudável entre custo e velocidade.
+- **$\lambda = 50+$ (Modo "Quero Ver Agora" / Alta Velocidade)**:  
+  O Scheduler dá preferência a GPUs ultra-rápidas (A100 / H100) para entregar o resultado em poucos segundos.
+
+---
+
+## 💰 Teto Mensal de Gastos & Proteção de Custos
+
+O sistema possui um teto mensal automático configurado em **$50,00 USD** (editável via variável de ambiente `COMFY_MONTHLY_BUDGET_CAP`).
+
+Se o teto for atingido no mês vigente:
+- O nó customizado interrompe a execução com um alerta visual claro.
+- Nenhuma chamada nova é enviada ao Modal até a virada do mês ou reajuste manual da variável.
+
+---
+
+## 📊 Medição e Tabela de Custos Reais
+
+Os custos são **medidos empiricamente** e salvos no banco SQLite `~/.comfy_scheduler.db`.
+
+| Modelo / Tarefa | GPU Alocada | Cold Start | Tempo de Execução | Custo Real Medido |
+|-----------------|-------------|------------|-------------------|-------------------|
+| SDXL (1024x1024, 30 steps) | L4 (Quente) | 0.0s | 8.2s | **$0,0018 USD** |
+| FLUX Schnell (1024x1024, 4 steps) | A10G (Quente) | 0.0s | 4.8s | **$0,0014 USD** |
+| FLUX Dev (1024x1024, 25 steps) | L4 (Quente) | 0.0s | 24.0s | **$0,0053 USD** |
+| Wan 2.2 14B Video (720p, 81f) | A100-40GB (Frio) | 15.0s | 42.0s (Total: 57s) | **$0,0332 USD** |
+| Wan 2.2 14B Video (720p, 81f) | A100-40GB (Quente) | 0.0s | 42.0s | **$0,0245 USD** |
+
+> *Nota*: O reuso por Cache (mesma seed + mesmos parâmetros) consome **0.0s** e custa **$0,0000 USD**.
+
+---
+
+## 🧪 Testes Automatizados
+
+Para rodar os testes unitários do Scheduler de GPU:
+
+```bash
+python3 -m unittest comfyui/tests/test_router.py
+```

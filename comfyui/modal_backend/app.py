@@ -21,8 +21,8 @@ models_volume = modal.Volume.from_name(MODEL_VOLUME_NAME, create_if_missing=True
 comfy_image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("git", "ffmpeg", "wget")
-    .pip_install("torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cu121")
-    .pip_install("comfy-cli", "requests", "pillow", "websocket-client", "sqlite3")
+    .pip_install("torch", "torchvision", "torchaudio", extra_options="--index-url https://download.pytorch.org/whl/cu121")
+    .pip_install("comfy-cli", "requests", "pillow", "websocket-client")
     .run_commands("comfy --skip-prompt install --nvidia || true")
 )
 
@@ -30,7 +30,7 @@ comfy_image = (
 @app.cls(
     image=comfy_image,
     volumes={MODEL_MOUNT_DIR: models_volume},
-    container_idle_timeout=DEFAULT_CONTAINER_IDLE_TIMEOUT,  # 5 minutos aquecido para iteração barata
+    scaledown_window=DEFAULT_CONTAINER_IDLE_TIMEOUT,  # 5 minutos aquecido para iteração barata
     timeout=600,
 )
 class ComfyWorker:

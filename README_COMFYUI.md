@@ -21,7 +21,7 @@
 ## 🛠️ Instalação Passo a Passo
 
 ### 1. Pré-requisitos
-- Python 3.10 ou 3.11 instalado.
+- macOS Intel com `/usr/local/bin/python3.12`.
 - Conta no [Modal.com](https://modal.com) criada.
 - CLI do Modal instalada e autenticada:
   ```bash
@@ -31,13 +31,14 @@
 
 ### 2. Instalar o ComfyUI Local
 
-#### No macOS (Apple Silicon / Intel):
+#### No macOS Intel:
 ```bash
-git clone https://github.com/comfyanonymous/ComfyUI.git
-cd ComfyUI
-python3 -m venv venv
+cd ~/ComfyUI/ComfyUI
+rm -r venv
+/usr/local/bin/python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+python --version  # 3.12.x
 ```
 
 #### No Windows:
@@ -48,12 +49,13 @@ Use o instalador portátil do ComfyUI (*ComfyUI Portable*) ou clone o repositór
 Copie a pasta `comfyui/custom_nodes/comfyui_modal_dispatch` para a pasta `custom_nodes/` da sua instalação do ComfyUI:
 
 ```bash
-cp -r comfyui/custom_nodes/comfyui_modal_dispatch /caminho/para/ComfyUI/custom_nodes/
+ln -s "$HOME/Projetos/Casa Amarano/comfyui/custom_nodes/comfyui_modal_dispatch" \
+  "$HOME/ComfyUI/ComfyUI/custom_nodes/comfyui_modal_dispatch"
 ```
 
 Reinicie o ComfyUI local:
 ```bash
-python main.py
+~/Projetos/Casa\ Amarano/comfyui/start.sh
 ```
 
 No menu de nós do ComfyUI, você verá o novo nó em:  
@@ -105,13 +107,11 @@ Os custos são **medidos empiricamente** e salvos no banco SQLite `~/.comfy_sche
 
 | Modelo / Tarefa | GPU Alocada | Cold Start | Tempo de Execução | Custo Real Medido |
 |-----------------|-------------|------------|-------------------|-------------------|
-| SDXL (1024x1024, 30 steps) | L4 (Quente) | 0.0s | 8.2s | **$0,0018 USD** |
-| FLUX Schnell (1024x1024, 4 steps) | A10G (Quente) | 0.0s | 4.8s | **$0,0014 USD** |
-| FLUX Dev (1024x1024, 25 steps) | L4 (Quente) | 0.0s | 24.0s | **$0,0053 USD** |
-| Wan 2.2 14B Video (720p, 81f) | A100-40GB (Frio) | 15.0s | 42.0s (Total: 57s) | **$0,0332 USD** |
-| Wan 2.2 14B Video (720p, 81f) | A100-40GB (Quente) | 0.0s | 42.0s | **$0,0245 USD** |
+| Execução | GPU | Cold Start | Tempo | Custo real |
+|---|---|---:|---:|---:|
+| Ainda não medido | — | — | — | — |
 
-> *Nota*: O reuso por Cache (mesma seed + mesmos parâmetros) consome **0.0s** e custa **$0,0000 USD**.
+> Não declarar custo real até uma geração remota concluída e confirmada no Modal.
 
 ---
 

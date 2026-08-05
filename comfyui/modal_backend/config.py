@@ -60,7 +60,7 @@ MODEL_VRAM_REQUIREMENTS: Dict[str, int] = {
     "flux_schnell": 16,
     "flux_dev": 24,
     "wan_2_1_14b": 24,
-    "wan_2_2_14b": 24,
+    "wan_2_2_14b": 32,
     "cogvideox": 24,
     "ltx_video": 16,
 }

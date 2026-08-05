@@ -6,7 +6,14 @@ Empacota um subgrafo pesado e dispara a execução remota no Modal com roteament
 import json
 import time
 import uuid
+import os
+import sys
 from typing import Dict, Any, Tuple
+
+# Adiciona o diretório do projeto Casa Amarano ao sys.path se necessário
+CASA_AMARANO_ROOT = "/Users/caioamaraldepieri/Projetos/Casa Amarano"
+if CASA_AMARANO_ROOT not in sys.path:
+    sys.path.insert(0, CASA_AMARANO_ROOT)
 
 from comfyui.scheduler.router import GPURouter
 from comfyui.scheduler.db import SchedulerDB

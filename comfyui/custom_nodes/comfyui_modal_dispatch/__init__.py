@@ -2,7 +2,7 @@
 Registro de Nós Customizados do ComfyUI Modal Dispatcher.
 """
 
-from comfyui.custom_nodes.comfyui_modal_dispatch.modal_dispatch_node import ModalSubgraphDispatch
+from .modal_dispatch_node import ModalSubgraphDispatch
 
 NODE_CLASS_MAPPINGS = {
     "ModalSubgraphDispatch": ModalSubgraphDispatch

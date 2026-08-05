@@ -14,6 +14,13 @@ from comfyui.modal_backend.config import GPU_SPECS
 
 class ComfyHeadlessRunner:
     def __init__(self, model_dir: str = "/models"):
+        # Se /models não puder ser criado (ex: ambiente local no macOS), usa fallback local seguro
+        if not os.path.exists(model_dir):
+            try:
+                os.makedirs(model_dir, exist_ok=True)
+            except OSError:
+                model_dir = os.path.expanduser("~/.comfy_models")
+        
         self.model_dir = model_dir
         self.output_dir = os.path.join(model_dir, "outputs")
         os.makedirs(self.output_dir, exist_ok=True)

@@ -1,0 +1,55 @@
+"""Despacho automático: resolve dependências, calcula GPU e executa o workflow."""
+
+import base64
+import json
+from pathlib import Path
+
+import modal
+
+from comfyui.dispatch.dispatch_plan import build_dispatch_plan
+from comfyui.modal_backend.app import WORKFLOW_FUNCTIONS, app
+from comfyui.scheduler.budget import BudgetManager
+from comfyui.scheduler.db import SchedulerDB
+from comfyui.scheduler.router import GPURouter
+
+
+@app.local_entrypoint()
+def main(
+    workflow_file: str,
+    lambda_val: float = 0.0,
+    resolution: str = "1024x1024",
+    steps: int = 30,
+    local_model_root: str = "~/ComfyUI/ComfyUI/models",
+):
+    workflow = json.loads(Path(workflow_file).read_text(encoding="utf-8"))
+    db = SchedulerDB()
+    router = GPURouter(db=db, budget_manager=BudgetManager(db))
+    plan = build_dispatch_plan(
+        workflow,
+        router,
+        resolution=resolution,
+        steps=steps,
+        lambda_val=lambda_val,
+        local_model_roots=[local_model_root],
+    )
+    if plan["target"] == "local":
+        raise SystemExit("Todos os modelos do workflow existem localmente; execute pelo ComfyUI local.")
+
+    selected_gpu = plan["route"]["selected_gpu"]
+    result = WORKFLOW_FUNCTIONS[selected_gpu].remote(workflow)
+    output_dir = Path(workflow_file).parent
+    for index, output in enumerate(result["outputs"], start=1):
+        suffix = output["format"] or "bin"
+        output_path = output_dir / f"remote_result_{index:02d}.{suffix}"
+        output_path.write_bytes(base64.b64decode(output["data_base64"]))
+
+    summary = {
+        "target": plan["target"],
+        "model": plan["model"],
+        "missing_files": plan["missing_files"],
+        "selected_gpu": selected_gpu,
+        "estimated_cost_usd": plan["route"]["estimated_cost_usd"],
+        "actual": result["metrics"],
+        "outputs": [str(output_dir / f"remote_result_{i:02d}.{o['format'] or 'bin'}") for i, o in enumerate(result["outputs"], start=1)],
+    }
+    print(json.dumps(summary, ensure_ascii=False))

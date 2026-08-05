@@ -9,6 +9,7 @@ import uuid
 import os
 import sys
 import subprocess
+import tempfile
 from typing import Dict, Any, Tuple
 
 # Adiciona o diretório do projeto Casa Amarano ao sys.path se necessário
@@ -20,6 +21,7 @@ if CASA_AMARANO_ROOT not in sys.path:
 
 from comfyui.scheduler.router import GPURouter
 from comfyui.modal_backend.config import MODEL_PROFILES
+from comfyui.dispatch.workflow_resolver import resolve_workflow
 from comfyui.scheduler.db import SchedulerDB
 from comfyui.custom_nodes.comfyui_modal_dispatch.utils import (
     compute_subgraph_hash,
@@ -115,6 +117,11 @@ class ModalSubgraphDispatch:
                 "seed": seed,
             }
 
+        if subgraph_json_override.strip() and all(
+            isinstance(value, dict) and "class_type" in value for value in subgraph_data.values()
+        ):
+            model_name = resolve_workflow(subgraph_data).model
+
         params = {
             "model_name": model_name,
             "task_type": task_type,
@@ -153,12 +160,9 @@ class ModalSubgraphDispatch:
             f"(Score: {route_decision['score']}, Est. Custo: ${route_decision['estimated_cost_usd']:.4f})"
         )
 
-        # 4. Execução real do SDXL no Modal Backend
-        if model_name != "sdxl":
-            raise RuntimeError(
-                f"O perfil {model_name} já está configurado no scheduler, mas ainda não possui executor Modal real. "
-                "Por segurança, este nó não vai executar SDXL fingindo ser outro modelo."
-            )
+        # 4. Execução real no Modal. Um override em formato API permite
+        # despachar um workflow completo; o formato simples continua usando
+        # o gerador SDXL compatível com o exemplo existente.
         start_time = time.time()
 
         # Simulação do progresso em tempo real enviando eventos para a UI do ComfyUI
@@ -167,14 +171,32 @@ class ModalSubgraphDispatch:
                 self._send_progress_update(step, steps)
 
         prompt = subgraph_data.get("prompt", "a cinematic architectural photograph")
-        modal_script = os.path.join(CASA_AMARANO_ROOT, "comfyui", "modal_backend", "generate_sdxl.py")
-        command = [
-            "modal", "run", modal_script,
-            "--prompt", prompt,
-            "--seed", str(seed),
-            "--steps", str(steps),
-            "--gpu", selected_gpu,
-        ]
+        if subgraph_json_override.strip() and all(
+            isinstance(value, dict) and "class_type" in value for value in subgraph_data.values()
+        ):
+            workflow_file = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+            json.dump(subgraph_data, workflow_file)
+            workflow_file.close()
+            modal_script = os.path.join(CASA_AMARANO_ROOT, "comfyui", "modal_backend", "dispatch_workflow.py")
+            command = [
+                "modal", "run", modal_script, workflow_file.name,
+                "--lambda-val", str(lambda_time_value),
+                "--resolution", resolution,
+                "--steps", str(steps),
+            ]
+        else:
+            if model_name != "sdxl":
+                raise RuntimeError(
+                    f"O perfil {model_name} exige um workflow API completo em subgraph_json_override."
+                )
+            modal_script = os.path.join(CASA_AMARANO_ROOT, "comfyui", "modal_backend", "generate_sdxl.py")
+            command = [
+                "modal", "run", modal_script,
+                "--prompt", prompt,
+                "--seed", str(seed),
+                "--steps", str(steps),
+                "--gpu", selected_gpu,
+            ]
         completed = subprocess.run(
             command,
             cwd=CASA_AMARANO_ROOT,
@@ -182,14 +204,28 @@ class ModalSubgraphDispatch:
             capture_output=True,
             text=True,
         )
-        json_start = completed.stdout.rfind("{\n  \"output\"")
-        result_info, _ = json.JSONDecoder().raw_decode(completed.stdout[json_start:])
-        output_path = os.path.join(CASA_AMARANO_ROOT, result_info.pop("output"))
-        with open(output_path, "rb") as output_file:
-            media_result = base64_to_tensor(
-                __import__("base64").b64encode(output_file.read()).decode("ascii")
-            )
-        actual_cost_usd = float(result_info["cost_usd"])
+        result_info = None
+        for line in reversed(completed.stdout.splitlines()):
+            try:
+                candidate = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict) and ("outputs" in candidate or "output" in candidate):
+                result_info = candidate
+                break
+        if result_info is None:
+            raise RuntimeError(f"Modal não retornou JSON de resultado: {completed.stdout[-2000:]}")
+        if "outputs" in result_info:
+            first_output = result_info["outputs"][0]
+            media_result = base64_to_tensor(first_output["data_base64"])
+            actual_cost_usd = float(result_info["metrics"]["actual_cost_usd"])
+        else:
+            output_path = os.path.join(CASA_AMARANO_ROOT, result_info.pop("output"))
+            with open(output_path, "rb") as output_file:
+                media_result = base64_to_tensor(
+                    __import__("base64").b64encode(output_file.read()).decode("ascii")
+                )
+            actual_cost_usd = float(result_info["cost_usd"])
         metrics = {
             "duration_s": float(result_info["duration_seconds"]),
             "actual_cost_usd": actual_cost_usd,

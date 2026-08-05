@@ -1,4 +1,5 @@
 """
+EXECUTOR_REVISION = "2026-08-05-headless-workflow-v2"
 Definição do App Modal para ComfyUI Serverless da Casa Amarano.
 Monta o Volume persistente de modelos, implementa @enter() para pré-carregamento,
 configura container_idle_timeout ~5min e disponibiliza funções de inferência.
@@ -23,7 +24,7 @@ comfy_image = (
     .apt_install("git", "ffmpeg", "wget")
     .pip_install("torch", "torchvision", "torchaudio", extra_options="--index-url https://download.pytorch.org/whl/cu121")
     .pip_install("comfy-cli", "requests", "pillow", "websocket-client")
-    .run_commands("comfy --skip-prompt install --nvidia || true")
+    .run_commands("comfy --skip-prompt install --nvidia")
 )
 
 
@@ -76,3 +77,50 @@ def check_status() -> dict:
         "volume_mount": MODEL_MOUNT_DIR,
         "volume_contents": items,
     }
+
+
+def _run_workflow(workflow: dict, gpu_type: str) -> dict:
+    from comfyui.modal_backend.comfy_runner import ComfyHeadlessRunner
+
+    runner = ComfyHeadlessRunner(model_dir=MODEL_MOUNT_DIR)
+    return runner.execute_workflow(workflow, gpu_type=gpu_type, is_warm=False)
+
+
+@app.function(image=comfy_image, gpu="T4", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
+def run_workflow_t4(workflow: dict) -> dict:
+    return _run_workflow(workflow, "T4")
+
+
+@app.function(image=comfy_image, gpu="L4", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
+def run_workflow_l4(workflow: dict) -> dict:
+    return _run_workflow(workflow, "L4")
+
+
+@app.function(image=comfy_image, gpu="A10G", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
+def run_workflow_a10g(workflow: dict) -> dict:
+    return _run_workflow(workflow, "A10G")
+
+
+@app.function(image=comfy_image, gpu="A100-40GB", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
+def run_workflow_a100_40gb(workflow: dict) -> dict:
+    return _run_workflow(workflow, "A100-40GB")
+
+
+@app.function(image=comfy_image, gpu="A100-80GB", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
+def run_workflow_a100_80gb(workflow: dict) -> dict:
+    return _run_workflow(workflow, "A100-80GB")
+
+
+@app.function(image=comfy_image, gpu="H100", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
+def run_workflow_h100(workflow: dict) -> dict:
+    return _run_workflow(workflow, "H100")
+
+
+WORKFLOW_FUNCTIONS = {
+    "T4": run_workflow_t4,
+    "L4": run_workflow_l4,
+    "A10G": run_workflow_a10g,
+    "A100-40GB": run_workflow_a100_40gb,
+    "A100-80GB": run_workflow_a100_80gb,
+    "H100": run_workflow_h100,
+}

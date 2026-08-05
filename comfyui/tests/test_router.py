@@ -13,6 +13,7 @@ from comfyui.scheduler.budget import BudgetManager, BudgetExceededException
 from comfyui.scheduler.router import GPURouter
 from comfyui.scheduler.batch import BatchScheduler
 from comfyui.scheduler.seed_data import get_seed_estimate
+from comfyui.modal_backend.config import GPU_SPECS, MODEL_PROFILES
 
 
 class TestGPUScheduler(unittest.TestCase):
@@ -36,7 +37,32 @@ class TestGPUScheduler(unittest.TestCase):
         decision = self.router.route_job(model="wan_2_2_14b", steps=30)
         selected = decision["selected_gpu"]
         self.assertNotEqual(selected, "T4", "T4 não possui VRAM suficiente para Wan 2.2 14B!")
-        self.assertIn(selected, ["L4", "A10G", "A100-40GB", "A100-80GB", "H100"])
+        self.assertIn(selected, ["A100-80GB", "H100"])
+
+    def test_catalog_vram_matrix(self):
+        """Cada perfil só oferece GPUs com a folga mínima declarada."""
+        for model, profile in MODEL_PROFILES.items():
+            required = profile["vram_min_gb"]
+            decision = self.router.route_job(model=model, steps=4)
+            viable = {c["gpu_name"] for c in decision["candidates_evaluated"]}
+            expected = {name for name, specs in GPU_SPECS.items() if specs["vram_gb"] >= required}
+            self.assertEqual(viable, expected, model)
+
+    def test_latest_profiles_gpu_boundaries(self):
+        """Perfis conhecidos têm limites verificáveis, sem esconder OOM atrás de L4."""
+        self.assertEqual(
+            {c["gpu_name"] for c in self.router.route_job("flux2_klein_4b")["candidates_evaluated"]},
+            set(GPU_SPECS),
+        )
+        self.assertEqual(
+            {c["gpu_name"] for c in self.router.route_job("wan_2_2_14b")["candidates_evaluated"]},
+            {"A100-80GB", "H100"},
+        )
+
+    def test_model_alias_is_canonicalized(self):
+        """Aliases comuns não caem silenciosamente no fallback de 16 GB."""
+        decision = self.router.route_job("hunyuanvideo-1.5")
+        self.assertEqual(decision["vram_required_gb"], 16)
 
     def test_warm_container_preference(self):
         """Se L4 estiver aquecida, cold_start deve ser 0 e alterar o score."""

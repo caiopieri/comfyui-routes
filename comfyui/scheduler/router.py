@@ -9,6 +9,7 @@ from comfyui.modal_backend.config import (
     GPU_SPECS,
     MODEL_VRAM_REQUIREMENTS,
     DEFAULT_LAMBDA_HOURLY_VAL,
+    canonical_model_name,
 )
 from comfyui.scheduler.seed_data import get_seed_estimate
 from comfyui.scheduler.db import SchedulerDB
@@ -55,7 +56,8 @@ class GPURouter:
         warm_map = warm_gpus or {}
 
         # 1. Filtro RÍGIDO de VRAM
-        vram_required = MODEL_VRAM_REQUIREMENTS.get(model.lower(), 16)
+        model_key = canonical_model_name(model)
+        vram_required = MODEL_VRAM_REQUIREMENTS.get(model_key, 16)
         viable_gpus: List[str] = []
         for gpu_name, specs in GPU_SPECS.items():
             if specs["vram_gb"] >= vram_required:
@@ -73,12 +75,12 @@ class GPURouter:
             specs = GPU_SPECS[gpu_name]
 
             # Tenta obter tempo médio histórico do SQLite; se não houver, usa semente
-            hist_avg = self.db.get_historical_avg_duration(model, gpu_name, resolution, steps)
+            hist_avg = self.db.get_historical_avg_duration(model_key, gpu_name, resolution, steps)
             if hist_avg is not None:
                 est_duration_s = hist_avg
                 is_estimate_from_history = True
             else:
-                est_duration_s = get_seed_estimate(model, gpu_name, resolution, steps)
+                est_duration_s = get_seed_estimate(model_key, gpu_name, resolution, steps)
                 is_estimate_from_history = False
 
             # Container quente?

@@ -19,6 +19,7 @@ if CASA_AMARANO_ROOT not in sys.path:
     sys.path.insert(0, CASA_AMARANO_ROOT)
 
 from comfyui.scheduler.router import GPURouter
+from comfyui.modal_backend.config import MODEL_PROFILES
 from comfyui.scheduler.db import SchedulerDB
 from comfyui.custom_nodes.comfyui_modal_dispatch.utils import (
     compute_subgraph_hash,
@@ -38,14 +39,7 @@ class ModalSubgraphDispatch:
         return {
             "required": {
                 "model_name": (
-                    [
-                        "sdxl",
-                        "flux_schnell",
-                        "flux_dev",
-                        "wan_2_1_14b",
-                        "wan_2_2_14b",
-                        "cogvideox",
-                    ],
+                    list(MODEL_PROFILES),
                     {"default": "sdxl"},
                 ),
                 "task_type": (
@@ -60,7 +54,7 @@ class ModalSubgraphDispatch:
                 "seed": ("INT", {"default": 42, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
                 "lambda_time_value": (
                     "FLOAT",
-                    {"default": 15.0, "min": 0.0, "max": 200.0, "step": 1.0},
+                    {"default": 0.0, "min": 0.0, "max": 200.0, "step": 1.0},
                 ),
                 "bypass_cache": ("BOOLEAN", {"default": False}),
             },
@@ -160,6 +154,11 @@ class ModalSubgraphDispatch:
         )
 
         # 4. Execução real do SDXL no Modal Backend
+        if model_name != "sdxl":
+            raise RuntimeError(
+                f"O perfil {model_name} já está configurado no scheduler, mas ainda não possui executor Modal real. "
+                "Por segurança, este nó não vai executar SDXL fingindo ser outro modelo."
+            )
         start_time = time.time()
 
         # Simulação do progresso em tempo real enviando eventos para a UI do ComfyUI
@@ -174,6 +173,7 @@ class ModalSubgraphDispatch:
             "--prompt", prompt,
             "--seed", str(seed),
             "--steps", str(steps),
+            "--gpu", selected_gpu,
         ]
         completed = subprocess.run(
             command,

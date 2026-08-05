@@ -53,17 +53,49 @@ GPU_SPECS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# Requisitos de VRAM mínima por Modelo de IA (GB)
-MODEL_VRAM_REQUIREMENTS: Dict[str, int] = {
-    "sd15": 8,
-    "sdxl": 12,
-    "flux_schnell": 16,
-    "flux_dev": 24,
-    "wan_2_1_14b": 24,
-    "wan_2_2_14b": 32,
-    "cogvideox": 24,
-    "ltx_video": 16,
+# Catálogo de famílias usadas pelo nó. O requisito é deliberadamente
+# conservador: inclui folga para pesos, VAE, activations e ComfyUI.
+# Não representa todos os checkpoints da comunidade; checkpoints da mesma
+# família usam o mesmo perfil (por exemplo, RealVisXL -> sdxl).
+MODEL_PROFILES: Dict[str, Dict[str, Any]] = {
+    "sd15": {"family": "Stable Diffusion 1.5", "mode": "txt2img/img2img", "vram_min_gb": 8},
+    "sdxl": {"family": "Stable Diffusion XL", "mode": "txt2img/img2img", "vram_min_gb": 12},
+    "flux_schnell": {"family": "FLUX.1 schnell", "mode": "txt2img", "vram_min_gb": 16},
+    "flux_dev": {"family": "FLUX.1 dev", "mode": "txt2img", "vram_min_gb": 24},
+    "flux_fill": {"family": "FLUX.1 Fill", "mode": "inpaint", "vram_min_gb": 24},
+    "flux_kontext": {"family": "FLUX.1 Kontext", "mode": "image editing", "vram_min_gb": 24},
+    "flux2_klein_4b": {"family": "FLUX.2 klein 4B", "mode": "txt2img/image editing", "vram_min_gb": 8},
+    "flux2_klein_9b": {"family": "FLUX.2 klein 9B", "mode": "txt2img/image editing", "vram_min_gb": 16},
+    "flux2_dev": {"family": "FLUX.2 dev", "mode": "txt2img/image editing", "vram_min_gb": 80},
+    "wan_2_1_t2v_1_3b": {"family": "Wan 2.1 T2V 1.3B", "mode": "txt2video", "vram_min_gb": 10},
+    "wan_2_1_14b": {"family": "Wan 2.1 14B", "mode": "txt2video/img2video", "vram_min_gb": 40},
+    "wan_2_2_14b": {"family": "Wan 2.2 T2V A14B", "mode": "txt2video", "vram_min_gb": 80},
+    "hunyuanvideo_1_5": {"family": "HunyuanVideo 1.5", "mode": "txt2video/img2video", "vram_min_gb": 16},
+    "hunyuanvideo": {"family": "HunyuanVideo", "mode": "txt2video/img2video", "vram_min_gb": 64},
+    "cogvideox": {"family": "CogVideoX", "mode": "txt2video/img2video", "vram_min_gb": 32},
+    "ltx_video": {"family": "LTX-Video", "mode": "txt2video/img2video", "vram_min_gb": 16},
+    "mochi_1": {"family": "Mochi 1", "mode": "txt2video", "vram_min_gb": 24},
+    "upscale_4x": {"family": "Upscale 4x", "mode": "upscale", "vram_min_gb": 8},
 }
+
+# Compatibilidade com o roteador e com integrações existentes.
+MODEL_VRAM_REQUIREMENTS: Dict[str, int] = {
+    name: profile["vram_min_gb"] for name, profile in MODEL_PROFILES.items()
+}
+
+MODEL_ALIASES = {
+    "wan2.1_1.3b": "wan_2_1_t2v_1_3b",
+    "wan_2_1_1_3b": "wan_2_1_t2v_1_3b",
+    "wan2.1_14b": "wan_2_1_14b",
+    "wan2.2_14b": "wan_2_2_14b",
+    "hunyuanvideo_1.5": "hunyuanvideo_1_5",
+    "flux2_klein_4b": "flux2_klein_4b",
+}
+
+def canonical_model_name(model: str) -> str:
+    """Normaliza aliases do nó/API para um perfil conhecido."""
+    normalized = model.strip().lower().replace("-", "_")
+    return MODEL_ALIASES.get(normalized, normalized)
 
 # Limites Globais de Gasto e Defaults
 DEFAULT_LAMBDA_HOURLY_VAL = float(os.getenv("COMFY_SCHEDULER_LAMBDA", "0.0"))  # USD/hora

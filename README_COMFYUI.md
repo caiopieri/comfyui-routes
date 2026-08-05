@@ -10,7 +10,7 @@
 1. **Interface Local Leve (Custo R$ 0)**: O Caio roda o ComfyUI na máquina dele (macOS, Windows ou Linux). Ele monta workflows, edita prompts, testa nós leves e navega pela interface sem gastar nada de GPU.
 2. **Despacho por Subgrafo**: Apenas a etapa pesada de amostragem/geração (ex: KSampler + VAE Decode / Wan 2.2) é empacotada pelo nó customizado `Modal Subgraph Dispatcher` e enviada para o **Modal**.
 3. **Roteamento Inteligente de GPU**: O Scheduler escolhe a melhor GPU (T4, L4, A10G, A100 ou H100) combinando:
-   - **Filtro Rígido de VRAM**: Elimina GPUs onde o modelo não cabe (ex: Wan 2.2 14B exige 24GB VRAM e é bloqueado em GPUs T4 de 16GB).
+   - **Filtro Rígido de VRAM**: Elimina GPUs onde o modelo não cabe. Wan 2.2 14B fica restrito a GPUs de 80 GB neste catálogo, conforme o requisito oficial do projeto.
    - **Histórico Medido no SQLite**: Aprende o tempo real de cada GPU com os dados de execuções anteriores.
    - **Cálculo de Score**: $\text{custo} = \text{preco\_segundo} \times (\text{tempo\_estimado} + \text{cold\_start})$, $\text{score} = \text{custo} + \lambda \times (\text{tempo\_total} / 3600)$.
    - **Containers Quentes**: Se o container já estiver ativo no Modal, $\text{cold\_start} = 0$, reduzindo o tempo total e alterando a escolha da GPU.
@@ -84,7 +84,7 @@ No menu de nós do ComfyUI, você verá o novo nó em:
 
 1. Adicione o nó **`🚀 Modal Subgraph Dispatcher`** no seu canvas.
 2. Configure os parâmetros de iteração:
-   - **`model_name`**: `sdxl`, `flux_schnell`, `flux_dev` ou `wan_2_2_14b`.
+   - **`model_name`**: perfil da família desejada. O catálogo inclui SD 1.5/XL, FLUX 1/2, Wan 2.1/2.2, HunyuanVideo, CogVideoX, LTX-Video, Mochi e upscale.
    - **`task_type`**: `txt2img`, `img2img`, `txt2video` ou `img2video`.
    - **`resolution`**: `1024x1024`, `1280x720`, etc.
    - **`steps`**: Número de passos (ex: 30).
@@ -129,6 +129,21 @@ Os custos são **medidos empiricamente** e salvos no banco SQLite `~/.comfy_sche
 | Ainda não medido | — | — | — | — |
 
 > Não declarar custo real até uma geração remota concluída e confirmada no Modal.
+
+### Catálogo e estado de execução
+
+O catálogo em `comfyui/modal_backend/config.py` configura o limite de VRAM e a
+matriz de GPUs para cada família. Ele não baixa automaticamente todos os
+checkpoints: os pesos podem ocupar dezenas de GB, exigir aceite de licença ou
+token do Hugging Face.
+
+Neste momento, o caminho de geração real validado pelo ComfyUI é `sdxl`. Os
+demais perfis já participam do filtro e dos testes do scheduler, mas o nó os
+recusa com mensagem explícita até existir um executor Modal específico e os
+pesos correspondentes no Volume. Isso evita gerar SDXL ou um placeholder
+acreditando que foi Wan, FLUX ou Hunyuan.
+
+Referências usadas para os limites mais sensíveis: [Wan 2.2](https://github.com/Wan-Video/Wan2.2), [HunyuanVideo](https://github.com/Tencent-Hunyuan/HunyuanVideo), [HunyuanVideo 1.5](https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5), [FLUX.2](https://github.com/black-forest-labs/flux2).
 
 ---
 

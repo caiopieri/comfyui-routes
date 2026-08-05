@@ -51,7 +51,15 @@ class ComfyHeadlessRunner:
         steps = subgraph_json.get("steps", 30)
         task_type = subgraph_json.get("task_type", "txt2img")
 
-        # Simulação/Execução real do subgrafo
+        # Este runner ainda não é um executor de modelos. Falhar explicitamente
+        # é mais seguro que devolver um PNG/MP4 placeholder como se fosse real.
+        supported_models = {"sdxl"}
+        if model_name not in supported_models:
+            raise NotImplementedError(
+                f"Executor real ausente para {model_name}; perfis de roteamento não implicam pesos instalados."
+            )
+
+        # Execução real do subgrafo
         # Na imagem do Modal com ComfyUI instalado, envia o prompt para o servidor local do ComfyUI
         # ou executa diretamente a pipeline Python.
         

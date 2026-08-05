@@ -8,6 +8,7 @@ import time
 import uuid
 import os
 import sys
+import subprocess
 from typing import Dict, Any, Tuple
 
 # Adiciona o diretório do projeto Casa Amarano ao sys.path se necessário
@@ -66,7 +67,7 @@ class ModalSubgraphDispatch:
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "FLOAT", "FLOAT")
+    RETURN_TYPES = ("IMAGE", "STRING", "FLOAT", "FLOAT")
     RETURN_NAMES = ("media_output", "result_info_json", "duration_seconds", "cost_usd")
     FUNCTION = "dispatch_subgraph"
     CATEGORY = "Casa Amarano / Modal"
@@ -156,7 +157,7 @@ class ModalSubgraphDispatch:
             f"(Score: {route_decision['score']}, Est. Custo: ${route_decision['estimated_cost_usd']:.4f})"
         )
 
-        # 4. Execução do Subgrafo no Modal Backend
+        # 4. Execução real do SDXL no Modal Backend
         start_time = time.time()
 
         # Simulação do progresso em tempo real enviando eventos para a UI do ComfyUI
@@ -164,33 +165,39 @@ class ModalSubgraphDispatch:
             if step % max(1, steps // 5) == 0 or step == steps:
                 self._send_progress_update(step, steps)
 
-        # Chamada ao Backend Headless do Modal (via app runner)
-        from comfyui.modal_backend.comfy_runner import ComfyHeadlessRunner
-        runner = ComfyHeadlessRunner()
-        res = runner.execute_subgraph(
-            subgraph_json=subgraph_data,
-            gpu_type=selected_gpu,
-            is_warm=route_decision["is_warm"],
+        prompt = subgraph_data.get("prompt", "a cinematic architectural photograph")
+        modal_script = os.path.join(CASA_AMARANO_ROOT, "comfyui", "modal_backend", "generate_sdxl.py")
+        command = [
+            "modal", "run", modal_script,
+            "--prompt", prompt,
+            "--seed", str(seed),
+            "--steps", str(steps),
+        ]
+        completed = subprocess.run(
+            command,
+            cwd=CASA_AMARANO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
         )
+        json_start = completed.stdout.rfind("{\n  \"output\"")
+        result_info, _ = json.JSONDecoder().raw_decode(completed.stdout[json_start:])
+        output_path = os.path.join(CASA_AMARANO_ROOT, result_info.pop("output"))
+        with open(output_path, "rb") as output_file:
+            media_result = base64_to_tensor(
+                __import__("base64").b64encode(output_file.read()).decode("ascii")
+            )
+        actual_cost_usd = float(result_info["cost_usd"])
+        metrics = {
+            "duration_s": float(result_info["duration_seconds"]),
+            "actual_cost_usd": actual_cost_usd,
+        }
 
         end_time = time.time()
         actual_duration_s = end_time - start_time
-        metrics = res["metrics"]
         actual_cost_usd = metrics["actual_cost_usd"]
 
         # Processamento do output
-        outputs = res.get("outputs", [])
-        primary_output = outputs[0] if outputs else {}
-        
-        if primary_output.get("type") == "video_ref":
-            media_result = create_video_reference_payload(
-                filename=primary_output["filename"],
-                volume_path=primary_output["volume_path"],
-                url=primary_output["url"],
-            )
-        else:
-            media_result = primary_output.get("data", "")
-
         # 5. Registro Medido no SQLite
         self.db.record_execution(
             job_id=job_id,
@@ -204,12 +211,6 @@ class ModalSubgraphDispatch:
             warm_container=route_decision["is_warm"],
             seed=seed,
             status="SUCCESS",
-        )
-
-        # 6. Salvar em Cache
-        self.db.save_cached_output(
-            hash_key=hash_key,
-            output_data=json.dumps({"output": media_result}),
         )
 
         result_info = json.dumps({

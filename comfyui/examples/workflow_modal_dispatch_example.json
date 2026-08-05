@@ -1,6 +1,6 @@
 {
   "last_node_id": 1,
-  "last_link_id": 0,
+  "last_link_id": 1,
   "nodes": [
     {
       "id": 1,
@@ -17,8 +17,8 @@
       "outputs": [
         {
           "name": "media_output",
-          "type": "STRING",
-          "links": null,
+          "type": "IMAGE",
+          "links": [1],
           "slot_index": 0
         },
         {
@@ -53,9 +53,22 @@
         false,
         "{\n  \"prompt\": \"A stunning architectural render of modern residence Casa Amarano, warm interior lighting, 8k resolution, photorealistic, archdaily style\",\n  \"negative_prompt\": \"blurry, low quality, distortion, noise\"\n}"
       ]
+    },
+    {
+      "id": 2,
+      "type": "PreviewImage",
+      "pos": [700, 200],
+      "size": {"0": 280, "1": 260},
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [{"name": "images", "type": "IMAGE", "link": 1}],
+      "outputs": [],
+      "properties": {"Node name for S&R": "PreviewImage"},
+      "widgets_values": []
     }
   ],
-  "links": [],
+  "links": [[1, 1, 0, 2, 0, "IMAGE"]],
   "groups": [
     {
       "title": "Casa Amarano — Modal GPU Subgraph Dispatcher Workflow",

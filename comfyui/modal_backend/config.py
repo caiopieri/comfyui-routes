@@ -66,7 +66,7 @@ MODEL_VRAM_REQUIREMENTS: Dict[str, int] = {
 }
 
 # Limites Globais de Gasto e Defaults
-DEFAULT_LAMBDA_HOURLY_VAL = float(os.getenv("COMFY_SCHEDULER_LAMBDA", "15.0"))  # USD/hora
+DEFAULT_LAMBDA_HOURLY_VAL = float(os.getenv("COMFY_SCHEDULER_LAMBDA", "0.0"))  # USD/hora
 DEFAULT_MONTHLY_BUDGET_CAP = float(os.getenv("COMFY_MONTHLY_BUDGET_CAP", "50.0"))  # USD/mês
 DEFAULT_CONTAINER_IDLE_TIMEOUT = 300  # 5 minutos para iteração quente
 MODEL_VOLUME_NAME = "comfyui-models-vol"

@@ -8,11 +8,15 @@ from typing import Dict, Tuple
 # Chave: (model_name, gpu_name, resolution, steps)
 # Valor: tempo_execucao_segundos
 SEED_BENCHMARKS: Dict[Tuple[str, str, str, int], float] = {
-    # SDXL (1024x1024, 30 steps)
-    ("sdxl", "T4", "1024x1024", 30): 18.5,
-    ("sdxl", "L4", "1024x1024", 30): 8.2,
-    ("sdxl", "A10G", "1024x1024", 30): 7.5,
-    ("sdxl", "A100-40GB", "1024x1024", 30): 4.1,
+    # SDXL (1024x1024, 30 steps) — medido em execução real no Modal em
+    # 2026-08-06 via generate_sdxl.py (container quente, tempo de inferência
+    # puro, sem o load do checkpoint). A100-80GB e H100 seguem estimados
+    # (não medidos nesta rodada — orçamento de calibração cobriu só até
+    # A100-40GB).
+    ("sdxl", "T4", "1024x1024", 30): 24.051,
+    ("sdxl", "L4", "1024x1024", 30): 11.755,
+    ("sdxl", "A10G", "1024x1024", 30): 9.868,
+    ("sdxl", "A100-40GB", "1024x1024", 30): 4.309,
     ("sdxl", "A100-80GB", "1024x1024", 30): 3.8,
     ("sdxl", "H100", "1024x1024", 30): 2.5,
 

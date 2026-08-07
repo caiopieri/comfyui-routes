@@ -8,33 +8,41 @@ from typing import Dict, Any
 
 # Tabela de especificações e preços de GPUs no Modal (USD)
 # Atualizável via arquivo de config ou variáveis de ambiente sem alterar código.
+#
+# default_cold_start_s medido em 2026-08-06 via generate_sdxl.py (container
+# frio, primeira chamada): tempo de carregar o checkpoint SDXL (~6.5GB fp16)
+# do Volume pra VRAM, sem contar a inferência em si (essa vai em
+# seed_data.py). Modelos maiores (vídeo, FLUX.2 dev etc.) vão pesar mais que
+# isso — não extrapolar direto sem medir. A100-80GB/H100 não foram medidos
+# nesta rodada (orçamento de calibração cobriu só até A100-40GB); mantidos
+# como estimativa anterior.
 GPU_SPECS: Dict[str, Dict[str, Any]] = {
     "T4": {
         "vram_gb": 16,
         "price_per_hour": 0.59,
         "price_per_sec": 0.59 / 3600.0,
-        "default_cold_start_s": 25.0,
+        "default_cold_start_s": 9.3,
         "modal_gpu_name": "t4",
     },
     "L4": {
         "vram_gb": 24,
         "price_per_hour": 0.80,
         "price_per_sec": 0.80 / 3600.0,
-        "default_cold_start_s": 20.0,
+        "default_cold_start_s": 7.3,
         "modal_gpu_name": "l4",
     },
     "A10G": {
         "vram_gb": 24,
         "price_per_hour": 1.10,
         "price_per_sec": 1.10 / 3600.0,
-        "default_cold_start_s": 18.0,
+        "default_cold_start_s": 7.0,
         "modal_gpu_name": "a10g",
     },
     "A100-40GB": {
         "vram_gb": 40,
         "price_per_hour": 2.10,
         "price_per_sec": 2.10 / 3600.0,
-        "default_cold_start_s": 15.0,
+        "default_cold_start_s": 6.2,
         "modal_gpu_name": "a100-40gb",
     },
     "A100-80GB": {
@@ -69,11 +77,17 @@ MODEL_PROFILES: Dict[str, Dict[str, Any]] = {
     "flux2_dev": {"family": "FLUX.2 dev", "mode": "txt2img/image editing", "vram_min_gb": 80},
     "wan_2_1_t2v_1_3b": {"family": "Wan 2.1 T2V 1.3B", "mode": "txt2video", "vram_min_gb": 10},
     "wan_2_1_14b": {"family": "Wan 2.1 14B", "mode": "txt2video/img2video", "vram_min_gb": 40},
+    # 80GB mantido de propósito: não há preset de download nem arquivo no
+    # Volume pra medir de verdade (fp16 do Wan 2.2 14B ficaria perto de 28GB
+    # só em pesos). Não baixar/reduzir sem medir primeiro.
     "wan_2_2_14b": {"family": "Wan 2.2 T2V A14B", "mode": "txt2video", "vram_min_gb": 80},
     "hunyuanvideo_1_5": {"family": "HunyuanVideo 1.5", "mode": "txt2video/img2video", "vram_min_gb": 16},
     "hunyuanvideo": {"family": "HunyuanVideo", "mode": "txt2video/img2video", "vram_min_gb": 64},
     "cogvideox": {"family": "CogVideoX", "mode": "txt2video/img2video", "vram_min_gb": 32},
-    "ltx_video": {"family": "LTX-2.3 22B", "mode": "txt2video/img2video", "vram_min_gb": 40},
+    # 40GB media curto: checkpoint fp8 (27.1 GiB) + text encoder gemma fp4
+    # (8.8 GiB) medidos no Volume (`modal volume ls`) já somam ~36 GiB só em
+    # pesos, antes de ativações/VAE/overhead do ComfyUI. 64GB dá folga real.
+    "ltx_video": {"family": "LTX-2.3 22B", "mode": "txt2video/img2video", "vram_min_gb": 64},
     "mochi_1": {"family": "Mochi 1", "mode": "txt2video", "vram_min_gb": 24},
     "upscale_4x": {"family": "Upscale 4x", "mode": "upscale", "vram_min_gb": 8},
 }

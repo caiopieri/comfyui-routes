@@ -152,7 +152,10 @@ class ComfyHeadlessRunner:
             json={"prompt": workflow, "client_id": str(uuid.uuid4())},
             timeout=30,
         )
-        response.raise_for_status()
+        if not response.ok:
+            raise RuntimeError(
+                f"ComfyUI remoto recusou o workflow ({response.status_code}): {response.text}"
+            )
         submitted = response.json()
         if submitted.get("node_errors"):
             raise ValueError(json.dumps(submitted["node_errors"], ensure_ascii=False))

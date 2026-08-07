@@ -98,7 +98,9 @@ def canonical_model_name(model: str) -> str:
     return MODEL_ALIASES.get(normalized, normalized)
 
 # Limites Globais de Gasto e Defaults
-DEFAULT_LAMBDA_HOURLY_VAL = float(os.getenv("COMFY_SCHEDULER_LAMBDA", "0.0"))  # USD/hora
+# Perfil de aprendizado: 3.0 USD/h dá algum peso a tempo sem empurrar pra GPU
+# cara à toa (15.0 é perfil de produção com pressa, não usar sem necessidade).
+DEFAULT_LAMBDA_HOURLY_VAL = float(os.getenv("COMFY_SCHEDULER_LAMBDA", "3.0"))  # USD/hora
 DEFAULT_MONTHLY_BUDGET_CAP = float(os.getenv("COMFY_MONTHLY_BUDGET_CAP", "50.0"))  # USD/mês
 DEFAULT_CONTAINER_IDLE_TIMEOUT = 300  # 5 minutos para iteração quente
 MODEL_VOLUME_NAME = "comfyui-models-vol"

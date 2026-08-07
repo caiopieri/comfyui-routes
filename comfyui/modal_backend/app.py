@@ -1,12 +1,15 @@
 """
-EXECUTOR_REVISION = "2026-08-05-headless-workflow-v2"
+EXECUTOR_REVISION = "2026-08-06-warm-workflow-v3"
 Definição do App Modal para ComfyUI Serverless da Casa Amarano.
-Monta o Volume persistente de modelos, implementa @enter() para pré-carregamento,
-configura container_idle_timeout ~5min e disponibiliza funções de inferência.
+Monta o Volume persistente de modelos e disponibiliza uma classe de worker
+por GPU, cada uma com @modal.enter() subindo o ComfyUI headless uma única
+vez por container — chamadas seguintes no mesmo container quente reaproveitam
+o processo e os checkpoints já carregados em VRAM.
 """
 
 import modal
 from comfyui.modal_backend.config import (
+    GPU_SPECS,
     MODEL_VOLUME_NAME,
     MODEL_MOUNT_DIR,
     DEFAULT_CONTAINER_IDLE_TIMEOUT,
@@ -28,40 +31,65 @@ comfy_image = (
 )
 
 
-@app.cls(
-    image=comfy_image,
-    volumes={MODEL_MOUNT_DIR: models_volume},
-    scaledown_window=DEFAULT_CONTAINER_IDLE_TIMEOUT,  # 5 minutos aquecido para iteração barata
-    timeout=600,
-)
-class ComfyWorker:
+class _ComfyWorkflowWorker:
+    gpu_type: str = "L4"
+
     @modal.enter()
     def setup(self):
-        """
-        Executado UMA ÚNICA VEZ ao subir o container da GPU.
-        Carrega modelos do Volume persistente para a VRAM da GPU.
-        """
-        import os
-        print(f"[Modal Worker] Container inicializado! Carregando modelos de {MODEL_MOUNT_DIR}...")
-        os.makedirs(os.path.join(MODEL_MOUNT_DIR, "checkpoints"), exist_ok=True)
-        os.makedirs(os.path.join(MODEL_MOUNT_DIR, "outputs"), exist_ok=True)
-        # Inicialização do runner headless
         from comfyui.modal_backend.comfy_runner import ComfyHeadlessRunner
+
         self.runner = ComfyHeadlessRunner(model_dir=MODEL_MOUNT_DIR)
-        print("[Modal Worker] Modelos pré-carregados na VRAM com sucesso.")
+        self.calls = 0
 
     @modal.method()
-    def run_subgraph(self, subgraph_json: dict, gpu_type: str = "L4") -> dict:
-        """
-        Executa um subgrafo enviado pelo nó local do ComfyUI.
-        """
-        print(f"[Modal Worker] Recebido subgrafo para execução na GPU {gpu_type}.")
-        result = self.runner.execute_subgraph(
-            subgraph_json=subgraph_json,
-            gpu_type=gpu_type,
-            is_warm=True,
+    def run(self, workflow: dict, input_files: dict | None = None) -> dict:
+        is_warm = self.calls > 0
+        self.calls += 1
+        return self.runner.execute_workflow(
+            workflow, gpu_type=self.gpu_type, is_warm=is_warm, input_files=input_files
         )
-        return result
+
+
+# Modal exige que classes @app.cls estejam em escopo global — uma fábrica
+# dentro de função não serializa. Uma classe explícita por GPU catalogada.
+@app.cls(image=comfy_image, gpu=GPU_SPECS["T4"]["modal_gpu_name"], volumes={MODEL_MOUNT_DIR: models_volume}, scaledown_window=DEFAULT_CONTAINER_IDLE_TIMEOUT, timeout=1800)
+class ComfyWorkflowWorkerT4(_ComfyWorkflowWorker):
+    gpu_type = "T4"
+
+
+@app.cls(image=comfy_image, gpu=GPU_SPECS["L4"]["modal_gpu_name"], volumes={MODEL_MOUNT_DIR: models_volume}, scaledown_window=DEFAULT_CONTAINER_IDLE_TIMEOUT, timeout=1800)
+class ComfyWorkflowWorkerL4(_ComfyWorkflowWorker):
+    gpu_type = "L4"
+
+
+@app.cls(image=comfy_image, gpu=GPU_SPECS["A10G"]["modal_gpu_name"], volumes={MODEL_MOUNT_DIR: models_volume}, scaledown_window=DEFAULT_CONTAINER_IDLE_TIMEOUT, timeout=1800)
+class ComfyWorkflowWorkerA10G(_ComfyWorkflowWorker):
+    gpu_type = "A10G"
+
+
+@app.cls(image=comfy_image, gpu=GPU_SPECS["A100-40GB"]["modal_gpu_name"], volumes={MODEL_MOUNT_DIR: models_volume}, scaledown_window=DEFAULT_CONTAINER_IDLE_TIMEOUT, timeout=1800)
+class ComfyWorkflowWorkerA10040GB(_ComfyWorkflowWorker):
+    gpu_type = "A100-40GB"
+
+
+@app.cls(image=comfy_image, gpu=GPU_SPECS["A100-80GB"]["modal_gpu_name"], volumes={MODEL_MOUNT_DIR: models_volume}, scaledown_window=DEFAULT_CONTAINER_IDLE_TIMEOUT, timeout=1800)
+class ComfyWorkflowWorkerA10080GB(_ComfyWorkflowWorker):
+    gpu_type = "A100-80GB"
+
+
+@app.cls(image=comfy_image, gpu=GPU_SPECS["H100"]["modal_gpu_name"], volumes={MODEL_MOUNT_DIR: models_volume}, scaledown_window=DEFAULT_CONTAINER_IDLE_TIMEOUT, timeout=1800)
+class ComfyWorkflowWorkerH100(_ComfyWorkflowWorker):
+    gpu_type = "H100"
+
+
+WORKFLOW_WORKERS = {
+    "T4": ComfyWorkflowWorkerT4,
+    "L4": ComfyWorkflowWorkerL4,
+    "A10G": ComfyWorkflowWorkerA10G,
+    "A100-40GB": ComfyWorkflowWorkerA10040GB,
+    "A100-80GB": ComfyWorkflowWorkerA10080GB,
+    "H100": ComfyWorkflowWorkerH100,
+}
 
 
 @app.function(
@@ -77,50 +105,3 @@ def check_status() -> dict:
         "volume_mount": MODEL_MOUNT_DIR,
         "volume_contents": items,
     }
-
-
-def _run_workflow(workflow: dict, gpu_type: str, input_files: dict | None = None) -> dict:
-    from comfyui.modal_backend.comfy_runner import ComfyHeadlessRunner
-
-    runner = ComfyHeadlessRunner(model_dir=MODEL_MOUNT_DIR)
-    return runner.execute_workflow(workflow, gpu_type=gpu_type, is_warm=False, input_files=input_files)
-
-
-@app.function(image=comfy_image, gpu="T4", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_t4(workflow: dict, input_files: dict | None = None) -> dict:
-    return _run_workflow(workflow, "T4", input_files)
-
-
-@app.function(image=comfy_image, gpu="L4", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_l4(workflow: dict, input_files: dict | None = None) -> dict:
-    return _run_workflow(workflow, "L4", input_files)
-
-
-@app.function(image=comfy_image, gpu="A10G", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_a10g(workflow: dict, input_files: dict | None = None) -> dict:
-    return _run_workflow(workflow, "A10G", input_files)
-
-
-@app.function(image=comfy_image, gpu="A100-40GB", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_a100_40gb(workflow: dict, input_files: dict | None = None) -> dict:
-    return _run_workflow(workflow, "A100-40GB", input_files)
-
-
-@app.function(image=comfy_image, gpu="A100-80GB", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_a100_80gb(workflow: dict, input_files: dict | None = None) -> dict:
-    return _run_workflow(workflow, "A100-80GB", input_files)
-
-
-@app.function(image=comfy_image, gpu="H100", volumes={MODEL_MOUNT_DIR: models_volume}, timeout=1800)
-def run_workflow_h100(workflow: dict, input_files: dict | None = None) -> dict:
-    return _run_workflow(workflow, "H100", input_files)
-
-
-WORKFLOW_FUNCTIONS = {
-    "T4": run_workflow_t4,
-    "L4": run_workflow_l4,
-    "A10G": run_workflow_a10g,
-    "A100-40GB": run_workflow_a100_40gb,
-    "A100-80GB": run_workflow_a100_80gb,
-    "H100": run_workflow_h100,
-}

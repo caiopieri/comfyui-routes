@@ -12,7 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from comfyui.dispatch.dispatch_plan import build_dispatch_plan
-from comfyui.modal_backend.app import WORKFLOW_FUNCTIONS, app
+from comfyui.modal_backend.app import app
 from comfyui.scheduler.budget import BudgetManager
 from comfyui.scheduler.db import SchedulerDB
 from comfyui.scheduler.router import GPURouter
@@ -47,7 +47,12 @@ def main(
         raise SystemExit("Todos os modelos do workflow existem localmente; execute pelo ComfyUI local.")
 
     selected_gpu = plan["route"]["selected_gpu"]
-    result = WORKFLOW_FUNCTIONS[selected_gpu].remote(workflow, input_files)
+    # Cls.from_name busca o worker no app JÁ DEPLOYADO (`modal deploy app.py`).
+    # Instanciar a classe local aqui rodaria num app efêmero, que desliga o
+    # container junto com este processo — perdendo o reaproveitamento quente
+    # entre chamadas (medido: veja seed_data.py).
+    worker_cls = modal.Cls.from_name("casa-amarano-comfyui", f"ComfyWorkflowWorker{selected_gpu.replace('-', '')}")
+    result = worker_cls().run.remote(workflow, input_files)
     output_dir = Path(workflow_file).parent
     for index, output in enumerate(result["outputs"], start=1):
         suffix = output["format"] or "bin"

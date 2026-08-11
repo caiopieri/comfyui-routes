@@ -45,6 +45,54 @@ def _resolution(workflow):
     return f"{width}x{height}"
 
 
+def _prompt_text(workflow):
+    """Acha o texto do prompt positivo: segue o link 'positive' do KSampler
+    até o CLIPTextEncode de origem; se não achar, usa o primeiro
+    CLIPTextEncode com texto no workflow."""
+    for node in workflow.values():
+        if not isinstance(node, dict) or node.get("class_type") != "KSampler":
+            continue
+        positive_ref = node.get("inputs", {}).get("positive")
+        if isinstance(positive_ref, list) and positive_ref:
+            source = workflow.get(str(positive_ref[0]))
+            if isinstance(source, dict):
+                text = source.get("inputs", {}).get("text")
+                if isinstance(text, str):
+                    return text
+    for node in workflow.values():
+        if isinstance(node, dict) and node.get("class_type") == "CLIPTextEncode":
+            text = node.get("inputs", {}).get("text")
+            if isinstance(text, str):
+                return text
+    return "a photorealistic image"
+
+
+def _try_omniroute(workflow):
+    """Se o modelo resolvido do workflow tem rota conhecida no OmniRoute,
+    tenta gerar por lá primeiro. Retorna None (não None = sucesso) para
+    cair no Modal em qualquer falha ou ausência de rota."""
+    try:
+        from comfyui.dispatch.workflow_resolver import resolve_workflow
+        from comfyui.modal_backend.omniroute_client import (
+            has_omniroute_route,
+            generate_via_omniroute,
+        )
+    except ImportError:
+        return None
+    model = resolve_workflow(workflow).model
+    if not has_omniroute_route(model):
+        return None
+    width = int(_workflow_value(workflow, ("width",), 1024))
+    height = int(_workflow_value(workflow, ("height",), 1024))
+    prompt = _prompt_text(workflow)
+    try:
+        print(f"[OmniRoute] Tentando {model} via API antes da GPU no Modal...")
+        return generate_via_omniroute(model, prompt, width, height)
+    except Exception as error:
+        print(f"[OmniRoute] Falhou ({error}) — caindo para GPU no Modal.")
+        return None
+
+
 def _collect_input_files(workflow):
     """Serializa imagens carregadas localmente para o job remoto."""
     try:
@@ -70,6 +118,9 @@ def _collect_input_files(workflow):
 
 def _run_remote(workflow_json):
     workflow = json.loads(workflow_json)
+    omniroute_result = _try_omniroute(workflow)
+    if omniroute_result is not None:
+        return omniroute_result
     input_files = _collect_input_files(workflow)
     with tempfile.TemporaryDirectory(prefix="casa-modal-") as temp_dir:
         workflow_path = Path(temp_dir) / "workflow.json"

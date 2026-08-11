@@ -1,5 +1,5 @@
 """
-EXECUTOR_REVISION = "2026-08-06-warm-workflow-v3"
+EXECUTOR_REVISION = "2026-08-11-force-redeploy-v4"
 Definição do App Modal para ComfyUI Serverless da Casa Amarano.
 Monta o Volume persistente de modelos e disponibiliza uma classe de worker
 por GPU, cada uma com @modal.enter() subindo o ComfyUI headless uma única
@@ -22,12 +22,23 @@ app = modal.App("casa-amarano-comfyui")
 models_volume = modal.Volume.from_name(MODEL_VOLUME_NAME, create_if_missing=True)
 
 # 3. Definição da Imagem do Container com dependências do ComfyUI e PyTorch
+#
+# add_local_python_source é explícito de propósito: comfy_runner.py só é
+# importado dentro de setup() (@modal.enter()), em runtime dentro do
+# container — o auto-mount do Modal não detecta esse import porque ele não
+# roda no momento do `modal deploy comfyui/modal_backend/app.py` (só executa
+# quando o método é chamado remotamente). Sem isso, o deploy direto de
+# app.py nunca inclui o pacote `comfyui` (confirmado: nenhum mount
+# "PythonPackage:comfyui" aparece no log de deploy), e o worker crash-loopa
+# silenciosamente com ModuleNotFoundError a cada tentativa — sem erro visível
+# no client local, que fica parado esperando indefinidamente.
 comfy_image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("git", "ffmpeg", "wget")
     .pip_install("torch", "torchvision", "torchaudio", extra_options="--index-url https://download.pytorch.org/whl/cu121")
     .pip_install("comfy-cli", "requests", "pillow", "websocket-client")
     .run_commands("comfy --skip-prompt install --nvidia")
+    .add_local_python_source("comfyui")
 )
 
 

@@ -76,8 +76,6 @@ class ComfyHeadlessRunner:
         self.process = subprocess.Popen(
             command,
             cwd=str(main_py.parent),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
         )
         deadline = time.time() + 180
         while time.time() < deadline:

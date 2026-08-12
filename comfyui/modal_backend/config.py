@@ -90,6 +90,13 @@ MODEL_PROFILES: Dict[str, Dict[str, Any]] = {
     "ltx_video": {"family": "LTX-2.3 22B", "mode": "txt2video/img2video", "vram_min_gb": 64},
     "mochi_1": {"family": "Mochi 1", "mode": "txt2video", "vram_min_gb": 24},
     "upscale_4x": {"family": "Upscale 4x", "mode": "upscale", "vram_min_gb": 8},
+    # Cloud-only via OmniRoute (Alibaba/DashScope) — não há preset de
+    # download nem checkpoint local pra medir de verdade. vram_min_gb aqui
+    # é só um chute conservador para o fallback no Modal ter algum número;
+    # esse fallback só funciona de verdade se você tiver pesos locais
+    # equivalentes instalados (não vêm com o projeto). Ver omniroute_client.py.
+    "qwen_image": {"family": "Qwen Image 2.0 (Alibaba)", "mode": "txt2img", "vram_min_gb": 24},
+    "wan_2_7": {"family": "Wan 2.7 (Alibaba)", "mode": "txt2video", "vram_min_gb": 80},
 }
 
 # Compatibilidade com o roteador e com integrações existentes.

@@ -10,6 +10,8 @@ from comfyui.modal_backend.config import MODEL_PROFILES, canonical_model_name
 MODEL_TOKENS = (
     ("wan_2_7", ("wan2.7", "wan_2.7", "wan-2.7")),
     ("qwen_image", ("qwen-image", "qwen_image")),
+    ("nano_banana", ("nano-banana", "nano_banana", "nanobanana")),
+    ("gpt_image", ("gpt-image", "gpt_image", "gptimage")),
     ("wan_2_2_14b", ("wan2.2", "wan_2.2", "wan-2.2")),
     ("wan_2_1_14b", ("wan2.1", "wan_2.1", "wan-2.1")),
     ("hunyuanvideo_1_5", ("hunyuanvideo-1.5", "hunyuanvideo_1_5")),

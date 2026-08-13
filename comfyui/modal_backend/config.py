@@ -97,6 +97,10 @@ MODEL_PROFILES: Dict[str, Dict[str, Any]] = {
     # equivalentes instalados (não vêm com o projeto). Ver omniroute_client.py.
     "qwen_image": {"family": "Qwen Image 2.0 (Alibaba)", "mode": "txt2img", "vram_min_gb": 24},
     "wan_2_7": {"family": "Wan 2.7 (Alibaba)", "mode": "txt2video", "vram_min_gb": 80},
+    # Idem, só que via assinatura (Google Pro / ChatGPT Plus) através do
+    # OAuth já conectado no OmniRoute — sem checkpoint local equivalente.
+    "nano_banana": {"family": "Nano Banana / Gemini 3.1 Flash Image", "mode": "txt2img", "vram_min_gb": 16},
+    "gpt_image": {"family": "GPT Image (via Codex/ChatGPT Plus)", "mode": "txt2img", "vram_min_gb": 24},
 }
 
 # Compatibilidade com o roteador e com integrações existentes.

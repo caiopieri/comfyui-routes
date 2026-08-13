@@ -72,6 +72,29 @@ OMNIROUTE_MODEL_MAP = {
         "response_format": "url",
         "timeout_s": OMNIROUTE_VIDEO_TIMEOUT_S,
     },
+    # Assinatura Google Pro (via conta OAuth do Antigravity já conectada no
+    # OmniRoute) — não é a chave paga da API do AI Studio, que fica sem
+    # crédito. Nano-banana de verdade.
+    "nano_banana": {
+        "media_type": "image",
+        "omniroute_model": "antigravity/gemini-3.1-flash-image",
+        "endpoint": "/v1/images/generations",
+        "needs_placeholder_image": False,
+        "size_style": "width_height",
+        "response_format": "b64_json",
+        "timeout_s": OMNIROUTE_IMAGE_TIMEOUT_S,
+    },
+    # Assinatura ChatGPT Plus (via conta OAuth do Codex já conectada no
+    # OmniRoute) — não precisa de chave de API paga da OpenAI.
+    "gpt_image": {
+        "media_type": "image",
+        "omniroute_model": "codex/gpt-5.6-sol",
+        "endpoint": "/v1/images/generations",
+        "needs_placeholder_image": False,
+        "size_style": "width_height",
+        "response_format": "url",
+        "timeout_s": OMNIROUTE_IMAGE_TIMEOUT_S,
+    },
 }
 
 

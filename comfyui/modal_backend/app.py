@@ -35,9 +35,52 @@ models_volume = modal.Volume.from_name(MODEL_VOLUME_NAME, create_if_missing=True
 comfy_image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("git", "ffmpeg", "wget")
-    .pip_install("torch", "torchvision", "torchaudio", extra_options="--index-url https://download.pytorch.org/whl/cu121")
+    # cu121 trava o torch numa versão velha demais (2.5.1) — comfy-kitchen
+    # (dependência do core, ver abaixo) usa torch.library.custom_op com
+    # generics nativos (list[int]) que o infer_schema só suporta a partir
+    # de versões mais novas. cu124 tem builds recentes o bastante.
+    # Trio sem pin dá ResolutionImpossible (conflito de nvidia-cudnn-cu12
+    # entre candidatos) — versões exatas compatíveis entre si por release
+    # oficial do PyTorch. torch==2.6.0 pede nvidia-cudnn-cu12==9.1.0.70, que
+    # sumiu do índice da NVIDIA (pulado direto de 9.0.0.312 pra 9.1.1.17) —
+    # 2.7.0 pede 9.5.1.17, que ainda existe. cu124 só vai até 2.6.0; 2.7.0+
+    # está só no índice cu128.
+    .pip_install("torch==2.7.0", "torchvision==0.22.0", "torchaudio==2.7.0", extra_options="--index-url https://download.pytorch.org/whl/cu128")
     .pip_install("comfy-cli", "requests", "pillow", "websocket-client")
     .run_commands("comfy --skip-prompt install --nvidia")
+    # comfy-cli instala uma tag fixa do ComfyUI, que fica atrás da versão
+    # que tem os nós que os templates oficiais mais novos precisam (ex.:
+    # LTXVDualCFGGuider, em comfy_extras/nodes_lt.py, usado pelo template
+    # LTX-2.5) — sem isso o /prompt remoto recusa com "missing_node_type"
+    # mesmo com os pesos certos no Volume. v0.32.0 é a primeira tag oficial
+    # que já inclui esse nó (confirmado por inspeção do histórico do repo)
+    # — usar a tag exata, e não master, evita puxar código ainda não
+    # testado/lançado cujas dependências (torch, comfy-kitchen) podem ter
+    # mudado sem aviso.
+    .run_commands(
+        "cd /root/comfy/ComfyUI "
+        "&& git fetch --depth 1 origin tag v0.32.0 "
+        "&& git checkout v0.32.0 "
+        # Reinstala a partir do requirements.txt DESSA tag (não o que o
+        # comfy-cli tinha instalado pra tag antiga) — evita reinstalar
+        # dependências peça por peça e ficar perseguindo incompatibilidades
+        # em cascata (torch <-> comfy-kitchen <-> kornia).
+        "&& pip install -r requirements.txt"
+    )
+    # requirements.txt da v0.32.0 pede kornia>=0.7.1, e sem pin específico
+    # o pip pega a mais nova (0.8.x), que removeu o re-export `pad` de
+    # kornia.geometry.transform.pyramid usado pelo nó customizado abaixo
+    # (ImportError silencioso, nó some do ComfyUI). 0.7.4 satisfaz o
+    # >=0.7.1 do core e ainda tem o `pad`.
+    .run_commands("pip install 'kornia==0.7.4'")
+    # Nós customizados adicionais que o template LTX-2.5 também usa (ex.:
+    # prompt enhancer, blending) e que não fazem parte do core.
+    .run_commands(
+        "cd /root/comfy/ComfyUI/custom_nodes "
+        "&& git clone --depth 1 https://github.com/Lightricks/ComfyUI-LTXVideo.git "
+        "&& (pip install -r ComfyUI-LTXVideo/requirements.txt || true) "
+        "&& pip install 'kornia==0.7.4'"
+    )
     .add_local_python_source("comfyui")
 )
 

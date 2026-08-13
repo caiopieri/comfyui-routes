@@ -19,4 +19,4 @@ RUN git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git ComfyUI \
 WORKDIR /opt/ComfyUI
 EXPOSE 8188
 
-CMD ["python", "main.py", "--cpu", "--listen", "0.0.0.0"]
+CMD ["python", "main.py", "--cpu", "--listen", "0.0.0.0", "--enable-assets"]

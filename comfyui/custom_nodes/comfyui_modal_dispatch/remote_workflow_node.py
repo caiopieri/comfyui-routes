@@ -220,6 +220,22 @@ class ModalRemoteVideoWorkflow(_RemoteBase):
         return {"ui": ui, "result": values}
 
 
+class ModalRemote3DWorkflow(_RemoteBase):
+    # Retorna o caminho como STRING em vez de tentar decodificar o arquivo
+    # (GLB/OBJ/etc.) como imagem — base64_to_tensor (utils.py) usa
+    # PIL.Image.open, que não entende esses formatos. "3d" é a mesma chave
+    # de UI que o SaveGLB nativo usa (comfy_extras/nodes_save_3d.py).
+    RETURN_TYPES = ("STRING", "STRING", "FLOAT", "FLOAT")
+    RETURN_NAMES = ("model_3d_path", "dispatch_info", "duration_seconds", "cost_usd")
+
+    def execute(self, workflow_json, models_metadata_json="[]"):
+        result, output_path, duration = self._result(workflow_json, models_metadata_json)
+        published = _publish_output(output_path)
+        ui = {"3d": [{"filename": published.name, "subfolder": "", "type": "output"}]}
+        values = (str(published), json.dumps(result, ensure_ascii=False), duration, float(result["actual"]["actual_cost_usd"]))
+        return {"ui": ui, "result": values}
+
+
 def install_prompt_fallback():
     """Troca workflows incompletos por um nó remoto antes da validação local."""
     try:
@@ -249,7 +265,22 @@ def install_prompt_fallback():
             for node in workflow.values()
         )
         video = video or any("ltx" in text.lower() for text in _walk(workflow))
-        node_type = "ModalRemoteVideoWorkflow" if video else "ModalRemoteImageWorkflow"
+        is_3d = any(
+            isinstance(node, dict) and (
+                node.get("class_type") in {
+                    "SaveGLB", "Save3DAdvanced", "SaveGaussianSplat", "SavePointCloud",
+                }
+                or "3d" in node.get("class_type", "").lower()
+                or "hunyuan3d" in node.get("class_type", "").lower()
+            )
+            for node in workflow.values()
+        )
+        if is_3d:
+            node_type = "ModalRemote3DWorkflow"
+        elif video:
+            node_type = "ModalRemoteVideoWorkflow"
+        else:
+            node_type = "ModalRemoteImageWorkflow"
         # A metadata properties.models só existe no grafo formato UI (com
         # pos/properties), não no "prompt" formato API que virou o payload —
         # o ComfyUI manda os dois juntos em extra_pnginfo pra gravação em

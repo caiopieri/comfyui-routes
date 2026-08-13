@@ -106,10 +106,27 @@ class ComfyHeadlessRunner:
         raise TimeoutError(f"Workflow {prompt_id} excedeu {timeout_s}s")
 
     def _serialize_outputs(self, history: Dict[str, Any]) -> List[Dict[str, Any]]:
+        # Em vez de uma lista fixa de chaves conhecidas (images/gifs/videos/
+        # audio/3d — descobertas uma a uma toda vez que um tipo novo de nó de
+        # saída aparece, ex.: SaveGLB usa "3d", SaveTextNode usa "files"),
+        # reconhece pelo FORMATO do item: qualquer lista de dict com
+        # "filename" é uma referência a arquivo salvo, seja qual for a
+        # chave. Cobre tipos futuros sem precisar de outro patch.
         outputs: List[Dict[str, Any]] = []
         for node_output in history.get("outputs", {}).values():
-            for key in ("images", "gifs", "videos", "audio"):
-                for item in node_output.get(key, []):
+            for key, items in node_output.items():
+                if key == "result" and isinstance(items, list) and items and isinstance(items[0], str):
+                    # Save3DAdvanced/SaveGaussianSplat/SavePointCloud usam
+                    # PreviewUI3D(Advanced), que foge da convenção de lista
+                    # de dict: o arquivo salvo vem como string de caminho
+                    # relativo na primeira posição, não um dict "filename".
+                    items = [{"filename": items[0], "subfolder": ""}]
+                    key = "3d"
+                if not isinstance(items, list):
+                    continue
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
                     filename = item.get("filename")
                     subfolder = item.get("subfolder", "")
                     if not filename:

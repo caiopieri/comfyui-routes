@@ -50,6 +50,7 @@ class ComfyHeadlessRunner:
             "  text_encoders: text_encoders\n"
             "  controlnet: controlnet\n"
             "  upscale_models: upscale_models\n"
+            "  latent_upscale_models: latent_upscale_models\n"
             "  embeddings: embeddings\n",
             encoding="utf-8",
         )

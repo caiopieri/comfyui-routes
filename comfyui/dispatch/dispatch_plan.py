@@ -14,9 +14,10 @@ def build_dispatch_plan(
     lambda_val: Optional[float] = None,
     local_model_roots: Optional[Iterable[str]] = None,
     warm_gpus: Optional[Dict[str, bool]] = None,
+    models_metadata: Optional[list] = None,
 ) -> Dict[str, Any]:
     """Resolve dependências e calcula a GPU somente quando Modal é necessário."""
-    resolved = resolve_workflow(workflow, local_model_roots)
+    resolved = resolve_workflow(workflow, local_model_roots, models_metadata=models_metadata)
     plan = {
         "model": resolved.model,
         "target": resolved.execution_target,
@@ -31,6 +32,7 @@ def build_dispatch_plan(
             steps=steps,
             lambda_val=lambda_val,
             warm_gpus=warm_gpus,
+            vram_override_gb=resolved.vram_required_gb,
         )
     else:
         plan["route"] = None

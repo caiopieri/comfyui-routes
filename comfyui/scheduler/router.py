@@ -34,17 +34,24 @@ class GPURouter:
         steps: int = 30,
         lambda_val: Optional[float] = None,
         warm_gpus: Optional[Dict[str, bool]] = None,
+        vram_override_gb: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Escolhe a melhor GPU para a tarefa com base na VRAM, custo medido e preferência de tempo.
-        
+
         Args:
-            model: Nome do modelo (ex: 'sdxl', 'flux_dev', 'wan_2_2_14b')
+            model: Nome do modelo (ex: 'sdxl', 'flux_dev', 'wan_2_2_14b', ou um
+                id sintético "auto_..." de workflow_resolver.py pra modelo sem
+                catálogo)
             resolution: Resolução pretendida (ex: '1024x1024', '1280x720')
             steps: Número de passos de amostragem
             lambda_val: Valor da hora do Caio em USD/hora (se None, usa default_lambda)
             warm_gpus: Dicionário indicando quais GPUs já estão com containers aquecidos {'L4': True}
-        
+            vram_override_gb: VRAM já calculada por quem chamou (ex: estimativa
+                por tamanho de arquivo em workflow_resolver.py) — tem prioridade
+                sobre o catálogo estático MODEL_VRAM_REQUIREMENTS, que é só
+                fallback pra quando ninguém informa nada.
+
         Returns:
             Dict com a GPU escolhida, estimativas de custo/tempo e razões da decisão.
         """
@@ -57,15 +64,19 @@ class GPURouter:
 
         # 1. Filtro RÍGIDO de VRAM
         model_key = canonical_model_name(model)
-        vram_required = MODEL_VRAM_REQUIREMENTS.get(model_key, 16)
+        vram_required = vram_override_gb if vram_override_gb is not None else MODEL_VRAM_REQUIREMENTS.get(model_key, 16)
+        # GPUs que já deram OutOfMemoryError nesse modelo antes — não tenta de novo
+        # às cegas, aprende com a própria história (ver dispatch_workflow.py).
+        oom_failed = self.db.get_oom_failed_gpus(model_key)
         viable_gpus: List[str] = []
         for gpu_name, specs in GPU_SPECS.items():
-            if specs["vram_gb"] >= vram_required:
+            if specs["vram_gb"] >= vram_required and gpu_name not in oom_failed:
                 viable_gpus.append(gpu_name)
 
         if not viable_gpus:
+            motivo = "já deram OutOfMemoryError nesse modelo" if oom_failed else f"requisito de VRAM mínima ({vram_required} GB)"
             raise ValueError(
-                f"Nenhuma GPU atende ao requisito de VRAM mínima ({vram_required} GB) para o modelo '{model}'."
+                f"Nenhuma GPU disponível pro modelo '{model}': todas {motivo}."
             )
 
         # 2 e 3. Calcular estimativas e scores para todas as GPUs viáveis

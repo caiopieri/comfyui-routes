@@ -120,6 +120,17 @@ class SchedulerDB:
                 return float(row["avg_duration"])
             return None
 
+    def get_oom_failed_gpus(self, model: str) -> set:
+        """GPUs que já deram torch.OutOfMemoryError pra esse modelo — usado
+        pra excluir do roteamento sem precisar remedir toda vez."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT DISTINCT gpu FROM executions WHERE model = ? AND status = 'OOM'",
+                (model,),
+            )
+            return {row["gpu"] for row in cursor.fetchall()}
+
     def get_monthly_cost(self, year: Optional[int] = None, month: Optional[int] = None) -> float:
         """Retorna o custo acumulado em USD no mês especificado (ou no mês atual se omitido)."""
         import datetime

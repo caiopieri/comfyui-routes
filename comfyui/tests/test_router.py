@@ -118,6 +118,55 @@ class TestGPUScheduler(unittest.TestCase):
         with self.assertRaises(BudgetExceededException):
             self.router.route_job(model="sdxl", steps=30)
 
+    def test_vram_override_takes_priority_over_catalog(self):
+        """vram_override_gb (estimativa dinâmica por tamanho) tem prioridade
+        sobre MODEL_VRAM_REQUIREMENTS — é assim que modelo sem catálogo
+        (workflow_resolver.py) escolhe GPU certa sem cadastro manual."""
+        decision = self.router.route_job(model="auto_deadbeef1234", steps=20, vram_override_gb=48)
+        viable = {c["gpu_name"] for c in decision["candidates_evaluated"]}
+        self.assertEqual(viable, {"A100-80GB", "H100"})
+
+    def test_oom_failed_gpu_is_excluded_from_next_route(self):
+        """GPU que já deu OutOfMemoryError nesse modelo não deve ser
+        oferecida de novo — é o que permite o retry automático em
+        dispatch_workflow.py escalar sozinho sem repetir o mesmo erro."""
+        model = "auto_deadbeef1234"
+        self.db.record_execution(
+            job_id="oom-test-1",
+            task_type="workflow",
+            model=model,
+            gpu="A100-80GB",
+            resolution="1024x1024",
+            steps=20,
+            duration_s=12.0,
+            cost_usd=0.01,
+            warm_container=False,
+            status="OOM",
+        )
+        decision = self.router.route_job(model=model, steps=20, vram_override_gb=48)
+        viable = {c["gpu_name"] for c in decision["candidates_evaluated"]}
+        self.assertEqual(viable, {"H100"})
+
+    def test_all_gpus_oom_raises_clear_error(self):
+        """Se até a maior GPU do catálogo já deu OOM, erro tem que deixar
+        claro o motivo (não confundir com "VRAM insuficiente")."""
+        model = "auto_deadbeef1234"
+        for gpu in ("A100-80GB", "H100"):
+            self.db.record_execution(
+                job_id=f"oom-test-{gpu}",
+                task_type="workflow",
+                model=model,
+                gpu=gpu,
+                resolution="1024x1024",
+                steps=20,
+                duration_s=12.0,
+                cost_usd=0.01,
+                warm_container=False,
+                status="OOM",
+            )
+        with self.assertRaisesRegex(ValueError, "OutOfMemoryError"):
+            self.router.route_job(model=model, steps=20, vram_override_gb=48)
+
     def test_batch_scheduler(self):
         """Testa o agrupamento em lote (BatchScheduler)."""
         batch_sched = BatchScheduler()

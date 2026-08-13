@@ -116,17 +116,24 @@ def _collect_input_files(workflow):
     return files
 
 
-def _run_remote(workflow_json):
+def _run_remote(workflow_json, models_metadata_json="[]"):
     workflow = json.loads(workflow_json)
     omniroute_result = _try_omniroute(workflow)
     if omniroute_result is not None:
         return omniroute_result
+    try:
+        models_metadata = json.loads(models_metadata_json)
+    except json.JSONDecodeError:
+        models_metadata = []
     input_files = _collect_input_files(workflow)
     with tempfile.TemporaryDirectory(prefix="casa-modal-") as temp_dir:
         workflow_path = Path(temp_dir) / "workflow.json"
         manifest_path = Path(temp_dir) / "manifest.json"
         workflow_path.write_text(json.dumps(workflow), encoding="utf-8")
-        manifest_path.write_text(json.dumps({"workflow": workflow, "input_files": input_files}), encoding="utf-8")
+        manifest_path.write_text(
+            json.dumps({"workflow": workflow, "input_files": input_files, "models_metadata": models_metadata}),
+            encoding="utf-8",
+        )
         command = [
             "modal", "run", str(DISPATCH_SCRIPT), "--workflow-file", str(workflow_path),
             "--lambda-val", str(os.environ.get("COMFY_MODAL_LAMBDA", "0")),
@@ -156,11 +163,14 @@ class _RemoteBase:
 
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"workflow_json": ("STRING", {"multiline": True})}}
+        return {
+            "required": {"workflow_json": ("STRING", {"multiline": True})},
+            "optional": {"models_metadata_json": ("STRING", {"multiline": True, "default": "[]"})},
+        }
 
-    def _result(self, workflow_json):
+    def _result(self, workflow_json, models_metadata_json="[]"):
         started = time.perf_counter()
-        result = _run_remote(workflow_json)
+        result = _run_remote(workflow_json, models_metadata_json)
         output = result["outputs"][0]
         output_path = Path(output["path"])
         fd, local_path = tempfile.mkstemp(prefix="casa-modal-output-", suffix=f".{output['format']}")
@@ -183,8 +193,8 @@ class ModalRemoteImageWorkflow(_RemoteBase):
     RETURN_TYPES = ("IMAGE", "STRING", "FLOAT", "FLOAT")
     RETURN_NAMES = ("image", "dispatch_info", "duration_seconds", "cost_usd")
 
-    def execute(self, workflow_json):
-        result, output_path, duration = self._result(workflow_json)
+    def execute(self, workflow_json, models_metadata_json="[]"):
+        result, output_path, duration = self._result(workflow_json, models_metadata_json)
         published = _publish_output(output_path)
         data = base64.b64encode(output_path.read_bytes()).decode("ascii")
         ui = {"images": [{"filename": published.name, "subfolder": "", "type": "output"}]}
@@ -196,8 +206,8 @@ class ModalRemoteVideoWorkflow(_RemoteBase):
     RETURN_TYPES = ("VIDEO", "STRING", "FLOAT", "FLOAT")
     RETURN_NAMES = ("video", "dispatch_info", "duration_seconds", "cost_usd")
 
-    def execute(self, workflow_json):
-        result, output_path, duration = self._result(workflow_json)
+    def execute(self, workflow_json, models_metadata_json="[]"):
+        result, output_path, duration = self._result(workflow_json, models_metadata_json)
         published = _publish_output(output_path)
         from comfy_api.latest import InputImpl
         ui = {"gifs": [{"filename": published.name, "subfolder": "", "type": "output"}]}
@@ -209,7 +219,7 @@ def install_prompt_fallback():
     """Troca workflows incompletos por um nó remoto antes da validação local."""
     try:
         from server import PromptServer
-        from comfyui.dispatch.workflow_resolver import resolve_workflow
+        from comfyui.dispatch.workflow_resolver import resolve_workflow, extract_models_metadata
     except ImportError:
         return
 
@@ -235,7 +245,22 @@ def install_prompt_fallback():
         )
         video = video or any("ltx" in text.lower() for text in _walk(workflow))
         node_type = "ModalRemoteVideoWorkflow" if video else "ModalRemoteImageWorkflow"
-        payload["prompt"] = {"__modal_remote__": {"class_type": node_type, "inputs": {"workflow_json": json.dumps(workflow)}}}
+        # A metadata properties.models só existe no grafo formato UI (com
+        # pos/properties), não no "prompt" formato API que virou o payload —
+        # o ComfyUI manda os dois juntos em extra_pnginfo pra gravação em
+        # PNG. Sem ela, o resolvedor cai no chute conservador de sempre
+        # ("sdxl") em vez de estimar pelo tamanho real dos pesos.
+        ui_workflow = payload.get("extra_data", {}).get("extra_pnginfo", {}).get("workflow")
+        models_metadata = extract_models_metadata(ui_workflow) if ui_workflow else []
+        payload["prompt"] = {
+            "__modal_remote__": {
+                "class_type": node_type,
+                "inputs": {
+                    "workflow_json": json.dumps(workflow),
+                    "models_metadata_json": json.dumps(models_metadata),
+                },
+            }
+        }
         payload["extra_data"] = {**payload.get("extra_data", {}), "casa_amarano_dispatch": resolution.as_dict()}
         return payload
 

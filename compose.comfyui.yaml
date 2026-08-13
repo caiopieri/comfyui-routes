@@ -18,6 +18,11 @@ services:
       - ./comfyui/custom_nodes/comfyui_modal_dispatch:/opt/ComfyUI/custom_nodes/comfyui_modal_dispatch:ro
       - ${HOME}/.modal.toml:/root/.modal.toml:ro
       - comfy_scheduler_db:/data/scheduler
+      # Sem isso, tudo que é gerado (imagens/vídeos, e o índice de Ativos
+      # que aponta pra eles) some a cada rebuild — o output/ vive dentro do
+      # container por padrão.
+      - comfy_output:/opt/ComfyUI/output
 
 volumes:
   comfy_scheduler_db:
+  comfy_output:

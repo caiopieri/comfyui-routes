@@ -9,6 +9,13 @@ Uso:
     modal run comfyui/modal_backend/download_models.py --preset flux-schnell
     modal run comfyui/modal_backend/download_models.py --repo <repo> --arquivo <file> --destino checkpoints
 
+    # Lê a metadata properties.models embutida num workflow (formato UI,
+    # com o que a biblioteca oficial de templates do ComfyUI já usa pro
+    # botão "Download Missing Models"), mostra tamanho e pede confirmação
+    # antes de baixar pro volume:
+    modal run comfyui/modal_backend/download_models.py --workflow-file caminho/workflow.json
+    modal run comfyui/modal_backend/download_models.py --workflow-file caminho/workflow.json --yes  # sem prompt
+
 Listar o que já está no volume:
     modal volume ls comfyui-models-vol /checkpoints
 """
@@ -122,13 +129,141 @@ def baixar(repo: str, arquivo: str, destino: str = "checkpoints", hf_arquivo: st
     return caminho
 
 
+@app.function(
+    image=image,
+    volumes={MODEL_MOUNT_DIR: volume},
+    timeout=60 * 60,
+    secrets=[modal.Secret.from_name("huggingface", required_keys=[])],
+)
+def baixar_url(url: str, destino: str, arquivo: str):
+    """Baixa um arquivo de uma URL direta (a metadata `properties.models`
+    que o próprio ComfyUI embute nos workflows da biblioteca oficial, com
+    link já resolvido) direto pro volume, em streaming."""
+    import os
+    import urllib.request
+
+    pasta = os.path.join(MODEL_MOUNT_DIR, destino)
+    os.makedirs(pasta, exist_ok=True)
+    destino_final = os.path.join(pasta, arquivo)
+    if os.path.exists(destino_final):
+        tamanho = os.path.getsize(destino_final) / (1024**3)
+        print(f"[pular] {arquivo} já existe ({tamanho:.1f} GB)")
+        return destino_final
+
+    print(f"[baixando] {url} -> {pasta}")
+    headers = {}
+    token = os.environ.get("HF_TOKEN")
+    if token and "huggingface.co" in url:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, headers=headers)
+    parcial = destino_final + ".part"
+    with urllib.request.urlopen(request) as response, open(parcial, "wb") as f:
+        while True:
+            chunk = response.read(8 * 1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+    os.replace(parcial, destino_final)
+
+    volume.commit()
+    tamanho = os.path.getsize(destino_final) / (1024**3)
+    print(f"[ok] {arquivo} — {tamanho:.1f} GB gravado no volume")
+    return destino_final
+
+
+def _extract_workflow_models(ui_workflow: dict) -> list:
+    """Percorre um workflow no formato UI (com `properties`) e coleta a
+    metadata `properties.models` que o próprio ComfyUI embute nos workflows
+    da biblioteca oficial de templates — mesmo campo que alimenta o botão
+    "Download Missing Models" nativo. Workflows da comunidade sem essa
+    metadata não têm URL confiável pra descobrir; não adivinhamos."""
+    found = []
+    seen = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            props = node.get("properties")
+            models = props.get("models") if isinstance(props, dict) else None
+            if isinstance(models, list):
+                for item in models:
+                    name = item.get("name") if isinstance(item, dict) else None
+                    url = item.get("url") if isinstance(item, dict) else None
+                    if name and url and name not in seen:
+                        seen.add(name)
+                        found.append(item)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(ui_workflow)
+    return found
+
+
+def _tamanho_remoto(url: str) -> int | None:
+    import urllib.request
+
+    try:
+        request = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(request, timeout=15) as response:
+            content_length = response.headers.get("Content-Length")
+            return int(content_length) if content_length else None
+    except Exception:
+        return None
+
+
 @app.local_entrypoint()
 def main(
     preset: str = "",
     repo: str = "",
     arquivo: str = "",
     destino: str = "checkpoints",
+    workflow_file: str = "",
+    yes: bool = False,
 ):
+    if workflow_file:
+        import json
+        from pathlib import Path
+
+        ui_workflow = json.loads(Path(workflow_file).read_text(encoding="utf-8"))
+        modelos = _extract_workflow_models(ui_workflow)
+        if not modelos:
+            print(
+                "Nenhuma metadata de modelo (properties.models) encontrada nesse "
+                "workflow.\nIsso é normal em workflows da comunidade sem essa "
+                "informação embutida — nesse caso não dá pra descobrir a URL "
+                "certa automaticamente; baixe manualmente com --repo/--arquivo."
+            )
+            return
+
+        print(f"{len(modelos)} modelo(s) referenciado(s) no workflow:\n")
+        total_bytes = 0
+        for item in modelos:
+            tamanho = _tamanho_remoto(item["url"])
+            item["_tamanho_bytes"] = tamanho
+            if tamanho:
+                total_bytes += tamanho
+            tamanho_str = f"{tamanho / (1024**3):.2f} GB" if tamanho else "tamanho desconhecido"
+            destino_item = item.get("directory", "checkpoints")
+            print(f"  - {item['name']} ({tamanho_str}) -> {destino_item}")
+
+        if total_bytes:
+            print(f"\nTotal estimado: {total_bytes / (1024**3):.2f} GB no Volume do Modal")
+        else:
+            print("\nNão foi possível estimar o tamanho de um ou mais arquivos.")
+
+        if not yes:
+            resposta = input("\nConfirmar download pro Volume do Modal? [s/N] ").strip().lower()
+            if resposta not in ("s", "sim", "y", "yes"):
+                print("Cancelado — nada foi baixado.")
+                return
+
+        for item in modelos:
+            baixar_url.remote(item["url"], item.get("directory", "checkpoints"), item["name"])
+        print(f"\n{len(modelos)} modelo(s) baixado(s) pro volume.")
+        return
+
     if preset:
         if preset not in PRESETS:
             disponiveis = ", ".join(PRESETS)

@@ -23,8 +23,11 @@ from comfyui.scheduler.router import GPURouter
 # Quantas GPUs maiores tentar automaticamente antes de desistir. O roteador
 # (router.py) já exclui GPUs que deram OOM nesse modelo antes, então cada
 # tentativa nova escolhe naturalmente a próxima opção viável — não é um loop
-# às cegas, é limitado pelo próprio catálogo de GPUs (6 tiers no máximo).
-MAX_OOM_RETRIES = 3
+# às cegas, é limitado pelo próprio catálogo de GPUs. Precisa ser o tamanho
+# real do catálogo (não um número fixo menor) — um workflow grande passou
+# por T4/L4/A10G, todas deram OOM, e um MAX_OOM_RETRIES=3 previamente
+# hardcoded desistiu sem sequer tentar A100-40GB/A100-80GB/H100.
+MAX_OOM_RETRIES = len(GPU_SPECS)
 
 
 def _e_oom(error: Exception) -> bool:

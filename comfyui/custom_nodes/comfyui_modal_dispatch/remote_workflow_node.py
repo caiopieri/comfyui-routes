@@ -210,7 +210,12 @@ class ModalRemoteVideoWorkflow(_RemoteBase):
         result, output_path, duration = self._result(workflow_json, models_metadata_json)
         published = _publish_output(output_path)
         from comfy_api.latest import InputImpl
-        ui = {"gifs": [{"filename": published.name, "subfolder": "", "type": "output"}]}
+        # "gifs" era a convenção antiga do ComfyUI para vídeo/animado, mas o
+        # /api/jobs do core (comfy_execution/jobs.py, PREVIEWABLE_MEDIA_TYPES)
+        # não reconhece essa chave — só conta como previewable outputs sob
+        # "images" (mesmo pra vídeo, com animated=True), que é o formato que
+        # o próprio SaveVideo/PreviewVideo nativo usa.
+        ui = {"images": [{"filename": published.name, "subfolder": "", "type": "output"}], "animated": (True,)}
         values = (InputImpl.VideoFromFile(str(published)), json.dumps(result, ensure_ascii=False), duration, float(result["actual"]["actual_cost_usd"]))
         return {"ui": ui, "result": values}
 

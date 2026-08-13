@@ -101,6 +101,14 @@ MODEL_PROFILES: Dict[str, Dict[str, Any]] = {
     # OAuth já conectado no OmniRoute — sem checkpoint local equivalente.
     "nano_banana": {"family": "Nano Banana / Gemini 3.1 Flash Image", "mode": "txt2img", "vram_min_gb": 16},
     "gpt_image": {"family": "GPT Image (via Codex/ChatGPT Plus)", "mode": "txt2img", "vram_min_gb": 24},
+    # Medido na prática (2026-08-12): sem essa entrada o resolvedor caía no
+    # default "sdxl" (12GB) e o roteador escolhia GPU pequena demais — deu
+    # torch.OutOfMemoryError carregando só o text encoder (14.6GB de pesos
+    # quantizados NVFP4, já reservando 14.4GB antes mesmo do UNET de
+    # 19.53GB e das VAEs entrarem). 80GB é o teto do catálogo; ainda não
+    # confirmamos se cabe justo ou se precisa de offload — só sabemos que
+    # T4/L4/A10G (16-24GB) não servem.
+    "minimax_h3": {"family": "MiniMax H3 (vídeo)", "mode": "img2video/txt2video", "vram_min_gb": 80},
 }
 
 # Compatibilidade com o roteador e com integrações existentes.

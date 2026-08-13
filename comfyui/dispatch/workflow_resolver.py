@@ -8,6 +8,7 @@ from comfyui.modal_backend.config import MODEL_PROFILES, canonical_model_name
 
 
 MODEL_TOKENS = (
+    ("minimax_h3", ("minimax_h3", "minimax-h3")),
     ("wan_2_7", ("wan2.7", "wan_2.7", "wan-2.7")),
     ("qwen_image", ("qwen-image", "qwen_image")),
     ("nano_banana", ("nano-banana", "nano_banana", "nanobanana")),

@@ -13,6 +13,12 @@ services:
       # GPUs que deram OOM) some a cada `docker compose up --build` — o
       # container é recriado do zero e o banco em /root some junto.
       COMFY_SCHEDULER_DB: /data/scheduler/comfy_scheduler.db
+      # omniroute_client.py usa "localhost:20128" por padrão, mas dentro do
+      # container "localhost" é o próprio container — o gateway OmniRoute
+      # roda no Mac host. Sem isso, toda tentativa de API falha em
+      # "connection refused" e cai pro Modal sem avisar (comportamento
+      # ainda "funciona", só que sempre pela GPU, nunca pela API).
+      OMNIROUTE_BASE_URL: http://host.docker.internal:20128
     volumes:
       - ./comfyui:/workspace/project/comfyui
       - ./comfyui/custom_nodes/comfyui_modal_dispatch:/opt/ComfyUI/custom_nodes/comfyui_modal_dispatch:ro

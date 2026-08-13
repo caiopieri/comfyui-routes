@@ -31,10 +31,78 @@ function formatarTamanho(bytes) {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
+// Diálogos próprios, sem confirm()/alert() nativos — esses travam a aba
+// inteira esperando clique, o que é ruim de UX e quebra qualquer automação
+// de teste na página. Overlay simples via DOM, sem depender de APIs
+// internas do ComfyUI (mais robusto entre versões).
+function estiloOverlay() {
+  return "position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;" +
+    "display:flex;align-items:center;justify-content:center;font-family:sans-serif;";
+}
+
+function estiloCaixa() {
+  return "background:#1e1e1e;color:#eee;border-radius:8px;padding:20px;" +
+    "max-width:520px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,0.5);" +
+    "white-space:pre-wrap;font-size:13px;line-height:1.5;";
+}
+
+function estiloBotao(cor) {
+  return `background:${cor};color:#fff;border:none;border-radius:4px;` +
+    "padding:8px 16px;margin-top:14px;margin-right:8px;cursor:pointer;font-size:13px;";
+}
+
+function mostrarConfirmacao(texto) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = estiloOverlay();
+    const caixa = document.createElement("div");
+    caixa.style.cssText = estiloCaixa();
+    caixa.textContent = texto;
+
+    const botoes = document.createElement("div");
+    const confirmar = document.createElement("button");
+    confirmar.textContent = "Confirmar download pro Modal";
+    confirmar.style.cssText = estiloBotao("#2d7d46");
+    const cancelar = document.createElement("button");
+    cancelar.textContent = "Cancelar";
+    cancelar.style.cssText = estiloBotao("#555");
+
+    const fechar = (resultado) => {
+      document.body.removeChild(overlay);
+      resolve(resultado);
+    };
+    confirmar.onclick = () => fechar(true);
+    cancelar.onclick = () => fechar(false);
+
+    botoes.appendChild(confirmar);
+    botoes.appendChild(cancelar);
+    caixa.appendChild(botoes);
+    overlay.appendChild(caixa);
+    document.body.appendChild(overlay);
+  });
+}
+
+function mostrarAviso(texto) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = estiloOverlay();
+  const caixa = document.createElement("div");
+  caixa.style.cssText = estiloCaixa();
+  caixa.textContent = texto;
+
+  const fechar = document.createElement("button");
+  fechar.textContent = "OK";
+  fechar.style.cssText = estiloBotao("#2d6ca2");
+  fechar.onclick = () => document.body.removeChild(overlay);
+
+  caixa.appendChild(fechar);
+  overlay.appendChild(caixa);
+  document.body.appendChild(overlay);
+}
+
 async function baixarModelosFaltantes() {
   const modelos = modelosDoWorkflowAtual();
   if (modelos.length === 0) {
-    alert(
+    mostrarAviso(
       "Esse workflow não tem metadata de modelo (properties.models) — normal em " +
         "workflows sem essa informação embutida. Não dá pra descobrir a URL sozinho."
     );
@@ -52,10 +120,9 @@ async function baixarModelosFaltantes() {
   const linhas = comTamanho
     .map((m) => `  - ${m.name} (${formatarTamanho(m.size_bytes)}) -> ${m.directory}`)
     .join("\n");
-  const confirmado = confirm(
+  const confirmado = await mostrarConfirmacao(
     `${comTamanho.length} modelo(s) referenciado(s) no workflow:\n\n${linhas}\n\n` +
-      `Total estimado: ${formatarTamanho(totalBytes)} no Volume do Modal.\n\n` +
-      `Confirmar download pro Modal?`
+      `Total estimado: ${formatarTamanho(totalBytes)} no Volume do Modal.`
   );
   if (!confirmado) return;
 
@@ -65,7 +132,7 @@ async function baixarModelosFaltantes() {
     body: JSON.stringify({ models: comTamanho }),
   });
   const { job_id } = await downloadResp.json();
-  alert(
+  mostrarAviso(
     "Download iniciado em segundo plano no Modal. Pode continuar usando o " +
       "ComfyUI normalmente — quando terminar, é só clicar em Executar de novo."
   );
@@ -77,11 +144,11 @@ async function baixarModelosFaltantes() {
     if (!statusResp.ok) break;
     const status = await statusResp.json();
     if (status.status === "done") {
-      alert("Download concluído! Os modelos já estão no Volume do Modal.");
+      mostrarAviso("Download concluído! Os modelos já estão no Volume do Modal.");
       return;
     }
     if (status.status === "error") {
-      alert(`Download falhou: ${status.error || "erro desconhecido"}`);
+      mostrarAviso(`Download falhou: ${status.error || "erro desconhecido"}`);
       return;
     }
   }

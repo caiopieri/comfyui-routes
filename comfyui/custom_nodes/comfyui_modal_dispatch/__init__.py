@@ -4,6 +4,9 @@ Registro de Nós Customizados do ComfyUI Modal Dispatcher.
 
 from .modal_dispatch_node import ModalSubgraphDispatch
 from .remote_workflow_node import ModalRemoteImageWorkflow, ModalRemoteVideoWorkflow
+from . import model_download_routes  # noqa: F401 — registra as rotas /casa_amarano/* ao importar
+
+WEB_DIRECTORY = "./web"
 
 NODE_CLASS_MAPPINGS = {
     "ModalSubgraphDispatch": ModalSubgraphDispatch,
@@ -17,4 +20,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ModalRemoteVideoWorkflow": "Modal Remote Video (automatic)",
 }
 
-__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

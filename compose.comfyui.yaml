@@ -9,7 +9,15 @@ services:
       - "8188:8188"
     environment:
       CASA_AMARANO_ROOT: /workspace/project
+      # Sem isso, o histórico aprendido pelo roteador (tempos/custos reais,
+      # GPUs que deram OOM) some a cada `docker compose up --build` — o
+      # container é recriado do zero e o banco em /root some junto.
+      COMFY_SCHEDULER_DB: /data/scheduler/comfy_scheduler.db
     volumes:
       - ./comfyui:/workspace/project/comfyui
       - ./comfyui/custom_nodes/comfyui_modal_dispatch:/opt/ComfyUI/custom_nodes/comfyui_modal_dispatch:ro
       - ${HOME}/.modal.toml:/root/.modal.toml:ro
+      - comfy_scheduler_db:/data/scheduler
+
+volumes:
+  comfy_scheduler_db:

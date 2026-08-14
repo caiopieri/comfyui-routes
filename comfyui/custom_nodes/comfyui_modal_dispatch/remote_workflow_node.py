@@ -126,6 +126,7 @@ def _run_remote(workflow_json, models_metadata_json="[]"):
     except json.JSONDecodeError:
         models_metadata = []
     input_files = _collect_input_files(workflow)
+    import folder_paths
     with tempfile.TemporaryDirectory(prefix="casa-modal-") as temp_dir:
         workflow_path = Path(temp_dir) / "workflow.json"
         manifest_path = Path(temp_dir) / "manifest.json"
@@ -139,7 +140,12 @@ def _run_remote(workflow_json, models_metadata_json="[]"):
             "--lambda-val", str(os.environ.get("COMFY_MODAL_LAMBDA", "0")),
             "--resolution", _resolution(workflow),
             "--steps", str(int(_workflow_value(workflow, ("steps", "num_inference_steps"), 20))),
-            "--local-model-root", "/opt/ComfyUI/models",
+            # folder_paths.models_dir é a própria noção do ComfyUI de "onde
+            # estão meus modelos" — funciona igual em Docker, Desktop ou
+            # instalação nua. "/opt/ComfyUI/models" só existia por coincidir
+            # com o layout do nosso container; fora dele, sempre reportava
+            # tudo como ausente (mesmo quando não era o caso).
+            "--local-model-root", str(folder_paths.models_dir),
             "--input-manifest", str(manifest_path),
         ]
         try:
@@ -241,6 +247,7 @@ def install_prompt_fallback():
     try:
         from server import PromptServer
         from comfyui.dispatch.workflow_resolver import resolve_workflow, extract_models_metadata
+        import folder_paths
     except ImportError:
         return
 
@@ -252,7 +259,14 @@ def install_prompt_fallback():
         ):
             return payload
         try:
-            resolution = resolve_workflow(workflow, ["/opt/ComfyUI/models", "/workspace/project/comfyui/models"])
+            # folder_paths.models_dir é portátil (Docker/Desktop/instalação
+            # nua); o segundo caminho é o diretório de modelos do próprio
+            # repo, relativo a CASA_AMARANO_ROOT (respeitando a env var, em
+            # vez de "/workspace/project" fixo, que só existe no container).
+            resolution = resolve_workflow(
+                workflow,
+                [folder_paths.models_dir, str(CASA_AMARANO_ROOT / "comfyui" / "models")],
+            )
         except (TypeError, ValueError):
             return payload
         if not resolution.needs_modal or not resolution.missing_files:

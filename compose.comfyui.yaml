@@ -7,6 +7,11 @@ services:
     restart: unless-stopped
     ports:
       - "8188:8188"
+    extra_hosts:
+      # Docker Desktop (Mac/Windows) já resolve host.docker.internal sozinho;
+      # no Docker Engine nativo do Linux ele não existe por padrão. Isso faz
+      # funcionar nos dois casos sem precisar de compose files separados.
+      - "host.docker.internal:host-gateway"
     environment:
       CASA_AMARANO_ROOT: /workspace/project
       # Sem isso, o histórico aprendido pelo roteador (tempos/custos reais,

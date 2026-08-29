@@ -48,6 +48,7 @@ class ModalComfyUIProvider:
                 self.modal_command,
                 "run",
                 str(self.dispatch_script),
+                "--workflow-file",
                 str(workflow_path),
                 "--resolution",
                 resolution,

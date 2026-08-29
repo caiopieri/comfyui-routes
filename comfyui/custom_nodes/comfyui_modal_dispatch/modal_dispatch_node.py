@@ -179,7 +179,7 @@ class ModalSubgraphDispatch:
             workflow_file.close()
             modal_script = os.path.join(CASA_AMARANO_ROOT, "comfyui", "modal_backend", "dispatch_workflow.py")
             command = [
-                "modal", "run", modal_script, workflow_file.name,
+                "modal", "run", modal_script, "--workflow-file", workflow_file.name,
                 "--lambda-val", str(lambda_time_value),
                 "--resolution", resolution,
                 "--steps", str(steps),

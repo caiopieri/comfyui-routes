@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping, Optional
 
@@ -103,7 +104,7 @@ class InferenceRequest:
 
     def __post_init__(self) -> None:
         if not self.request_id:
-            object.__setattr__(self, "request_id", f"req-{int(self.created_at * 1000)}")
+            object.__setattr__(self, "request_id", f"req-{uuid.uuid4().hex[:16]}")
 
 
 @dataclass(frozen=True)

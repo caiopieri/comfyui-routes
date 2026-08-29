@@ -120,6 +120,8 @@ class AdaptiveScheduler:
             )
 
         predictions = [item[2] for item in provisional]
+        accepted_predictions: list[Prediction] = []
+        decisions: list[tuple[ExecutionTarget, Optional[RuntimeWorker], Prediction, str | None]] = []
         for target, worker, prediction in provisional:
             latency = prediction.p95_latency_s + self.safety_margin_s
             reason = None
@@ -150,6 +152,12 @@ class AdaptiveScheduler:
                     f"{request.sla.min_quality:.2f}"
                 )
 
+            decisions.append((target, worker, prediction, reason))
+            if reason is None:
+                accepted_predictions.append(prediction)
+
+        scoring_predictions = accepted_predictions or predictions
+        for target, worker, prediction, reason in decisions:
             plan = ExecutionPlan(
                 request_id=request.request_id,
                 target_id=target.target_id,
@@ -159,7 +167,7 @@ class AdaptiveScheduler:
                     prediction,
                     target,
                     request.sla.mode,
-                    predictions,
+                    scoring_predictions,
                     request.sla.latency_target_s,
                 ),
                 prediction=prediction,

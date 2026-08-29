@@ -201,6 +201,11 @@ class AdaptiveInferenceTests(unittest.TestCase):
                 ProviderRegistry([target("target-a", 0.001)]),
             ).plan(InferenceRequest(workload=workload()))
 
+    def test_generated_request_ids_are_unique(self):
+        first = InferenceRequest(workload=workload())
+        second = InferenceRequest(workload=workload())
+        self.assertNotEqual(first.request_id, second.request_id)
+
 
 if __name__ == "__main__":
     unittest.main()

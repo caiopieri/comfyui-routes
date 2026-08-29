@@ -6,6 +6,7 @@ Registra execuções reais, calcula histórico medido, monitora orçamento mensa
 import os
 import sqlite3
 import time
+from contextlib import contextmanager
 from typing import Optional, Dict, Any, Tuple
 
 DEFAULT_DB_PATH = os.getenv("COMFY_SCHEDULER_DB", os.path.expanduser("~/.comfy_scheduler.db"))
@@ -17,10 +18,14 @@ class SchedulerDB:
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @contextmanager
+    def _get_connection(self):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         """Cria as tabelas necessárias se não existirem."""

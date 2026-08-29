@@ -1,0 +1,30 @@
+[
+  {
+    "target_id": "modal-h100-1",
+    "provider": "modal",
+    "gpu": "H100",
+    "gpu_count": 1,
+    "interconnect": "nvlink",
+    "region": "us-east",
+    "price_per_gpu_second": 0.001097,
+    "startup_latency_s": 12,
+    "quality_score": 0.9,
+    "trust_tier": 2,
+    "supported_workloads": ["wan22-t2v-720p-81f"],
+    "metadata": {"modal_gpu_name": "H100"}
+  },
+  {
+    "target_id": "modal-a100-80gb-1",
+    "provider": "modal",
+    "gpu": "A100-80GB",
+    "gpu_count": 1,
+    "interconnect": "nvlink",
+    "region": "us-east",
+    "price_per_gpu_second": 0.000694,
+    "startup_latency_s": 15,
+    "quality_score": 0.85,
+    "trust_tier": 2,
+    "supported_workloads": ["wan22-t2v-720p-81f"],
+    "metadata": {"modal_gpu_name": "A100-80GB"}
+  }
+]

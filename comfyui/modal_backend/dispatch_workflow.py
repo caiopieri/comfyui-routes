@@ -43,6 +43,7 @@ def main(
     steps: int = 30,
     local_model_root: str = "~/ComfyUI/ComfyUI/models",
     input_manifest: str = "",
+    gpu_override: str = "",
 ):
     workflow = json.loads(Path(workflow_file).read_text(encoding="utf-8"))
     input_files = {}
@@ -73,6 +74,15 @@ def main(
             raise SystemExit("Todos os modelos do workflow existem localmente; execute pelo ComfyUI local.")
 
         selected_gpu = plan["route"]["selected_gpu"]
+        if gpu_override:
+            viable = {candidate["gpu_name"] for candidate in plan["route"]["candidates_evaluated"]}
+            if gpu_override not in viable:
+                raise SystemExit(
+                    f"GPU solicitada ({gpu_override}) não atende ao plano: "
+                    f"{', '.join(sorted(viable))}"
+                )
+            selected_gpu = gpu_override
+            plan["route"] = {**plan["route"], "selected_gpu": gpu_override}
         # Cls.from_name busca o worker no app JÁ DEPLOYADO (`modal deploy app.py`).
         # Instanciar a classe local aqui rodaria num app efêmero, que desliga o
         # container junto com este processo — perdendo o reaproveitamento quente

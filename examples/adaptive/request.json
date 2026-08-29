@@ -1,0 +1,28 @@
+{
+  "request_id": "demo-wan-request",
+  "workload": {
+    "workload_id": "wan22-t2v-720p-81f",
+    "model": "Wan2.2-A14B",
+    "model_version": "2.2",
+    "pipeline": "wan-t2v",
+    "pipeline_version": "comfyui-0.32.0",
+    "quantization": "fp8",
+    "width": 1280,
+    "height": 720,
+    "frames": 81,
+    "steps": 30,
+    "metadata": {
+      "prompt": "a modern Brazilian house at golden hour"
+    }
+  },
+  "sla": {
+    "latency_target_s": 20,
+    "max_latency_s": 30,
+    "max_cost_usd": 0.8,
+    "mode": "balanced",
+    "priority": 50
+  },
+  "payload": {
+    "workflow": {}
+  }
+}

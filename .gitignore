@@ -1,0 +1,31 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments and secrets
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Local runtime state
+*.db
+*.sqlite
+*.sqlite3
+output/
+outputs/
+comfyui/examples/*.png
+
+# Build and editor files
+build/
+dist/
+*.egg-info/
+.DS_Store
+.idea/
+.vscode/
